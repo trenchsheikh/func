@@ -166,7 +166,7 @@ Format: status is one of `OPEN`, `ACCEPTED`, `SUPERSEDED (by NNN)`.
   and critiqued (docs/design/2026-07-24-inspiration-artifact-critique.md) — its
   trust mechanics adopted as direction, its map-as-afterthought, gender telemetry
   and luxury-only economics explicitly rejected.
-- **Process:** Per the EM operating changes (docs/team/2026-07-24-em-review.md),
+- **Process:** Per the EM operating changes (team/reviews/2026-07-24-em-review.md),
   the design ran as parallel independent explorations (three map concepts from
   different first principles + vouch/stories/profile designs) with adversarial
   judging before synthesis — single-designer tunnel vision is the biggest quality
@@ -278,3 +278,48 @@ Format: status is one of `OPEN`, `ACCEPTED`, `SUPERSEDED (by NNN)`.
 - **Next:** resume once Xcode is confirmed working — attach the Simulator
   panel, launch Func via `expo start --ios`, and re-verify the whole demo
   script (prototype/QA.md) natively before any further "verified" claims.
+- **Update (2026-07-25):** Xcode fully installed and confirmed (five iPhone
+  Simulator models available). Native verification is unblocked whenever
+  build work resumes — see `team/standing-orders.md`.
+
+---
+
+## Decision 011 — `team/` folder: durable team memory, mechanically enforced
+
+- **Date:** 2026-07-25
+- **Status:** ACCEPTED (founder directive)
+- **Context:** The founder asked for a folder holding rules/instructions for
+  the team so it "continuously reminds itself" of its role and the founder's
+  chosen direction, across sessions that don't share conversation history.
+  Two risks with doing this as an ordinary docs folder: (1) nothing forces a
+  future session to actually open it — a folder that exists but isn't read is
+  no better than no folder; (2) durable rules, live/changeable founder
+  instructions, and product facts have different lifecycles and shouldn't be
+  mixed in one undifferentiated pile, or the file rots into either staleness
+  or noise.
+- **Decision:** Created `team/` at the repo root (not nested under `docs/`,
+  for visibility) with four files, each with a distinct lifecycle:
+  - `README.md` — index and reading order, and what does *not* belong here
+    (product facts stay in `docs/`; the founder's own Func Bible, once
+    written, outranks this folder on product direction).
+  - `roles.md` — the four roles' mandates and known failure modes. Durable.
+  - `operating-principles.md` — the durable process rules (16, spanning
+    direction/decisions, building, verification, safety, money). Durable.
+  - `standing-orders.md` — live, founder-issued, explicitly mutable
+    instructions (currently: the build hold pending the Func Bible, and the
+    GitHub/cloud-routine setup status). Designed to be edited and pruned
+    as orders change — a stale entry is treated as worse than no entry.
+  - `glossary.md` — Func-specific vocabulary, fast-reference version of the
+    Map v3 spec's terms plus core product nouns (Pool, Night, Sparks).
+  Moved `docs/team/2026-07-24-em-review.md` → `team/reviews/` to
+  consolidate — having both `docs/team/` and a new `team/` would itself be
+  the kind of disorganisation this decision exists to prevent.
+  **Mechanical enforcement:** added a root `CLAUDE.md` — auto-loaded into
+  every session's context by the harness — instructing any session to read
+  `team/README.md` and check `team/standing-orders.md` before acting. This is
+  what makes "continuously remind itself" actually true rather than
+  aspirational: a plain docs folder relies on a future session choosing to
+  read it; `CLAUDE.md` removes that as a point of failure.
+- **Effective immediately:** per the standing order this same file records,
+  no further Map v3 build work happens until the founder's Func Bible is
+  complete and they say to resume.
