@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Func",
+    "slug": "func-prototype",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "func",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "backgroundColor": "#0A0A0F",
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "backgroundColor": "#0A0A0F"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset"
+    ]
+  }
+}

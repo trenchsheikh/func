@@ -1,0 +1,144 @@
+[
+  {
+    "scores": [
+      {
+        "concept": "Pulse \u2014 the Living City map",
+        "discovery": 8,
+        "friction": 6,
+        "intuitive": 7,
+        "retention": 8,
+        "expansion": 7,
+        "identity": 8,
+        "total": 44,
+        "critique": "Gorgeous, but it makes the 19-year-old do the work. She opens the app needing an answer and gets a poem: orbit view, cinematic dive, a '128 BPM' pill that means literally nothing on first read, heat whose animation TEMPO secretly encodes fill-rate (nobody will ever decode that), plus constellations, comets, tide, story rings \u2014 four metaphor systems where Snap needed one. The orbit-first open is a demo-day flex that costs her 10 seconds every single time before she gets utility, and a sceptic will clock '2.3 million people out on Earth' with one live city as inflated theatre. Worst of all for this lens: the map renders the city but doesn't rank it \u2014 she still has to scan blobs and guess, and cost (the thing she actually filters on) is buried a tap deep in the venue card. With zero friends on the app, graph-weighted heat degrades to exactly the Current/NOITE utility the concept claims to transcend. The seven-day Tide/Afterglow story is the best retention thinking of the three, but retention is a problem you earn by surviving the first Friday, and Pulse's first Friday is the weakest of the trio."
+      },
+      {
+        "concept": "The Call \u2014 Func Map v3, the Decision Engine",
+        "discovery": 9,
+        "friction": 9,
+        "intuitive": 8,
+        "retention": 7,
+        "expansion": 9,
+        "identity": 7,
+        "total": 49,
+        "critique": "The only concept that respects what Friday 9pm actually is: a decision under time pressure made by someone who doesn't trust your app yet. Opens straight onto the city (no globe toll), the Top-3 rail answers 'where' in words for map-illiterate users, and \u00a3 on the map is the single most credible thing any of these concepts show a broke 19-year-old \u2014 no benchmark app does it and it's her real filter. Crucially it's the only concept honest about the zero-friend cold open: heat \u00d7 budget \u00d7 distance is genuine single-player utility in 20 seconds, and the first ask ('start your crew') arrives after value is delivered, not before. Two real worries. First, the verdict mechanic is the dorkiest thing here \u2014 groups decide by vibes in a chat, and a 10-minute timer plus 'captain's call' risks feeling like the app is running a homeowners' association meeting; if In/Nah doesn't feel like a joke you send, it dies. Second, ranking is a loaded gun: one Friday where the #1 beacon is a dead room and she uninstalls \u2014 the whole concept is a promise Pulse and Floor never make and therefore can't break. And aesthetically it's the least ownable surface \u2014 'the app that computes your night' can read as generic utility without borrowing warmth from the other two."
+      },
+      {
+        "concept": "The Floor \u2014 Func's living night map",
+        "discovery": 7,
+        "friction": 6,
+        "intuitive": 9,
+        "retention": 8,
+        "expansion": 7,
+        "identity": 9,
+        "total": 46,
+        "critique": "The best single idea in the whole exercise \u2014 story rings ON venues, so heat and content are one mark using a grammar every 19-year-old already reads at a glance \u2014 welded to the most fragile premise: 'heat is never synthetic, every pixel authored by a real group.' That's a beautiful principle and a suicide note for the cold open; on launch night in a thin network, the sceptic sees three lit venues in someone else's neighbourhood and a dark city, and the concept's own backfill mitigation directly contradicts its stated first principle. It's also the most friend-dependent of the three: flags, rallies, and the FOMO trigger all require her graph to already be out, and it offers no ranked shortlist and no cost signal until she's two levels deep in the Marquee \u2014 so the solo cold-open user gets vibes, not answers. The first-time walkthrough spends its 25\u201345s window pinching out to the globe to 'feel the ambition,' which is brand theatre sold as onboarding. And the whole pitch admits its persuasion lives in animation craft (flag physics, ring decay) \u2014 meaning an under-resourced build reads as gimmick, which is a terrifying dependency for a prototype-stage team. Strongest identity and best micro-intuitions of the three; weakest answer to 'why does this help me tonight, alone, right now.'"
+      }
+    ],
+    "winner": "The Call \u2014 Func Map v3, the Decision Engine",
+    "graftFromLosers": [
+      "Story rings from The Floor as the venue mark itself: render Match Beacons as segmented, age-coloured story rings (white-hot \u2192 ember, 2h decay) so heat, freshness, and content are one glanceable object instead of glow + separate reel row \u2014 this is the single best visual idea across all three and it drops straight into The Call's Decision Card grammar.",
+      "The Floor's half-raised flag as the Verdict UI: instead of empty vote slots, render Call It as a crew flag that rises as In votes land and snaps upright with a burst at lock \u2014 it converts the HOA-meeting vote mechanic into something charming and watchable, and de-dorks the concept's riskiest interaction.",
+      "Pulse's Night Tide forecast strip ('peaks at 11') as one row on the Decision Card and as the demo time-scrubber's visual language \u2014 ghosted/uncertain rendering included, since The Call's ranking-trust risk needs exactly that honesty affordance.",
+      "Pulse's OMW comet treatment for Convoy: comet trails converging with live ETAs and the venue mark visibly charging up as each member arrives \u2014 same data The Call already plans, dramatically better theatre for the most compulsive glance-loop in the product.",
+      "The Floor's 'put this place on the map' posting frame verbatim \u2014 it's the best status-framing for content supply and slots directly into The Call's Pulse-stories feature.",
+      "Pulse's Beacon-with-visible-countdown privacy rendering: show Convoy's auto-expiry as a literal on-screen countdown on the layer toggle, making plan-scoped location visually undeniable rather than a settings claim.",
+      "The Floor's group home-bar language ('The Vault \u2014 your crew's spot, 5 nights') for The Call's ambient Tuesday layer \u2014 warmer and more identity-rich than 'venue loyalty ranks'.",
+      "Pulse's one-shot long-press tooltip pattern ('Long-press anywhere to rally your crew', shown exactly once) as the only other piece of onboarding copy beside The Call's single coach line."
+    ]
+  },
+  {
+    "scores": [
+      {
+        "concept": "Pulse \u2014 the Living City map",
+        "discovery": 9,
+        "friction": 7,
+        "intuitive": 9,
+        "retention": 7,
+        "expansion": 8,
+        "identity": 8,
+        "total": 48,
+        "critique": "Gorgeous ambient layer, weak pull mechanic. Pulse is a broadcast you watch, not a loop that summons you \u2014 nothing in it makes another person's action land on MY phone and reopen the app (Rally exists but is buried under the watching metaphor). Retention therefore depends entirely on the glance being rewarding, which depends on graph density, which is the one thing you won't have for 12 months; the concept's own risk section concedes graph-weighted heat 'may read identically to Current' in city one. Beacon opt-in is a second adoption hurdle stacked on the first: if crews don't broadcast, the social layer is invisible and you've shipped a prettier NOITE. Night Tide is the best single retention idea across all three concepts (a real answer to Tuesday, plus a compounding forecast-data moat), but it's attached to the weakest activation-and-invite flywheel. As a growth operator: high ceiling, no ladder."
+      },
+      {
+        "concept": "The Call \u2014 Func Map v3, the Decision Engine",
+        "discovery": 9,
+        "friction": 9,
+        "intuitive": 8,
+        "retention": 8,
+        "expansion": 9,
+        "identity": 9,
+        "total": 52,
+        "critique": "The only concept where retention is driven by social obligation rather than ambient curiosity: being summoned to vote is a notification with near-100% open intent, Convoy generates 5-10 high-intent glances per night, and the verdict object generalizes to Pool knocks \u2014 one grammar, many reopens. Critically, it's also the only concept with a mechanical viral loop: 'Call it' with zero friends immediately forces 'who's coming?' \u2014 activation IS invitation \u2014 and it degrades to genuine single-player utility (heat \u00d7 budget \u00d7 distance) that retains users through the empty-network period until network effects arrive. Weaknesses: the 'decision instrument' frame is weekend-peaked and its Tuesday ambient layer is a bolt-on paragraph, not a designed feature; ranking trust is a single-point-of-failure (one dead #1 beacon on a Friday and the instrument is broken in a way Pulse's vibes-only heat never can be); and the voting mechanic risks adding process to groups that decide by inertia \u2014 if In/Nah feels like Doodle-for-nightlife, it dies. But it's the only concept where every night out makes the product measurably smarter and every new user structurally recruits two more."
+      },
+      {
+        "concept": "The Floor \u2014 Func's living night map",
+        "discovery": 8,
+        "friction": 6,
+        "intuitive": 9,
+        "retention": 7,
+        "expansion": 7,
+        "identity": 9,
+        "total": 46,
+        "critique": "The most coherent design language of the three \u2014 story rings unify heat and content into one Snap-literate mark, flags-not-dots is the thesis made visible, and vouch crests are the only trust infrastructure anyone proposed. But 'heat is never synthetic' is a growth operator's nightmare stated as a principle: the concept maximizes cold-start visibility of sparsity by design, then quietly contradicts itself with venue-posted backfill in the risk section. Its core loop (WATCH \u2192 WANT) has the same flaw as Pulse \u2014 retention rests on there being a performance to watch \u2014 compounded by a content-supply dependency Pulse doesn't have: rings starve unless people mid-night stop dancing to post, and nothing in the loop compensates when they don't. Vouch crests are real network-effect infrastructure but on a 12-month clock; they do nothing for month-three retention. Friction score suffers because nearly all value is gated behind other people's opt-in acts (planting flags, posting clips). This is the concept you want the winning product to LOOK like, not BE."
+      }
+    ],
+    "winner": "The Call \u2014 Func Map v3, \"The Decision Engine\"",
+    "graftFromLosers": [
+      "Night Tide from Pulse: the time scrubber with forecast (ghosted future heat) and Sunday Afterglow is the strongest Tuesday-retention idea in any concept and directly fixes The Call's weakest area \u2014 graft it wholesale as the off-peak mode, including the compounding forecast-data moat per city.",
+      "Story rings from The Floor: replace The Call's separate 'freshness row' and venue pins with the segmented burn-ring mark (one segment per fresh story, white-hot to ember over 2h) \u2014 it merges heat and content into one glanceable object and makes the Decision Card's evidence visible from city altitude.",
+      "Quorum flag animation from The Floor: use the half-raised-flag-that-rises-as-votes-arrive as the visual for Call It voting \u2014 it turns The Call's utilitarian verdict timer into a watchable open loop (checking whether the flag has risen is itself a re-engagement event).",
+      "Vouch crests from The Floor: graft the tenure-gated, attributable host-crest system onto The Call's Pool Beacons as the trust gate \u2014 'vouched by Maya + 2 you know' at the knock moment is what makes stranger-mixing convert, and no competitor has reputation on a map.",
+      "City BPM pill and breathing-heat tempo from Pulse: 'Velmont: 128 BPM' is the single best shareable/screenshot-able artifact across all three concepts \u2014 a one-number summary of the night that doubles as organic marketing \u2014 and tempo-encoded pulse makes The Call's 60s heat frames feel alive at near-zero cost.",
+      "Opt-in-by-act presence model from The Floor: presence is off by default and planting/joining a plan is the explicit act that turns it on \u2014 cleaner consent architecture than The Call's Convoy toggle and a stronger answer to the privacy-headline risk.",
+      "Crew home-bar loyalty from The Floor ('The Vault \u2014 your crew's spot, 5 nights'): the group-scale version of Snap Place Loyalty is a better streak object than generic weekend streaks, and it's the natural venue-monetization rail for The Call's expansion story."
+    ]
+  },
+  {
+    "scores": [
+      {
+        "concept": "Pulse \u2014 the Living City map",
+        "discovery": 8,
+        "friction": 7,
+        "intuitive": 9,
+        "retention": 7,
+        "expansion": 7,
+        "identity": 6,
+        "total": 44,
+        "critique": "The most beautiful concept and the least defensible one. Its first-screen impression \u2014 a heat map of the city with story rings you tap \u2014 IS Snap Map's grammar, and the concept says so proudly ('heat=busy is the universal grammar Snap proved'). The genuinely uncopyable part, graph-weighted heat, is invisible: a screenshot of Pulse and a screenshot of a Snap clone look identical, and the concept itself admits that in city one it 'may read identically to Current.' An investor sees a mirror, not a machine \u2014 Pulse broadcasts the night but never computes anything for you, so its moat is aesthetic execution (BPM pill, breathing tempo, tide) plus a network effect it hopes arrives. Cinematic mirrors get copied in a quarter by any team with a motion designer. The tide/forecast layer is the one structurally original asset, and it's buried at the bottom of the screen."
+      },
+      {
+        "concept": "The Call \u2014 Func Map v3, The Decision Engine",
+        "discovery": 9,
+        "friction": 9,
+        "intuitive": 7,
+        "retention": 8,
+        "expansion": 9,
+        "identity": 9,
+        "total": 51,
+        "critique": "The only concept whose defensibility is structural rather than cosmetic. Three things make it impossible to confuse with Snap Map and brutal to copy: (1) money on the map \u2014 no incumbent shows cost, and the crowd-receipt corpus that keeps the cost meter honest compounds nightly into a proprietary dataset; (2) the ranked instrument \u2014 'the map that decides' is a category claim, not a skin, and fit-ranking BY GROUP requires a group graph Snap's individual-first architecture cannot produce; (3) Call It / In / Nah \u2014 group consensus as a map interaction generates behavioral data (proposed\u2192voted\u2192attended) that trains the ranking, a flywheel with no analog anywhere. Its weakness is the inverse of Pulse's: it has the best moat and the thinnest soul. It risks reading as a utility \u2014 Yelp with votes \u2014 because it lacks a signature visual mark you'd tattoo on merch. It's also the most fragile identity: one Friday where the #1 beacon is a dead room, or one promoted beacon caught lying, and 'the map that decides' becomes 'the map that lied.' Ranking trust is a single point of failure, and the verdict mechanic needs real-group testing before it earns the hero slot."
+      },
+      {
+        "concept": "The Floor \u2014 Func's living night map",
+        "discovery": 7,
+        "friction": 7,
+        "intuitive": 8,
+        "retention": 8,
+        "expansion": 7,
+        "identity": 8,
+        "total": 45,
+        "critique": "Owns the single best brand asset across all three concepts \u2014 the crew flag. A flag planted on a venue is Func's Bitmoji: instantly legible, screenshot-distinctive, structurally group-first, and impossible for Snap to adopt without rebuilding its individual-avatar model. Vouch crests are the only trust infrastructure anyone proposed and the real unlock for stranger-mixing. But the load-bearing discovery surface \u2014 story rings \u2014 is borrowed IG/Snap grammar reapplied to venues, which the concept concedes ('reuses the universally-decoded IG/Snap story-ring grammar'). Borrowed grammar aids onboarding and undermines distinctiveness in equal measure. Worse for an investor: The Floor's stated moat is animation polish ('Zenly proved polish is the moat'), which is an execution moat, not a structural one \u2014 polish is exactly what a well-funded incumbent replicates fastest. It's also the concept most exposed to cold-start, since every pixel of light requires real UGC, and it still leaves the actual deciding to the user: a stage, not an engine."
+      }
+    ],
+    "winner": "The Call \u2014 Func Map v3, \"The Decision Engine\"",
+    "graftFromLosers": [
+      "Crew Flags from The Floor: replace The Call's generic Gathering Pin with the planted avatar-stack flag \u2014 it is the strongest ownable brand mark in any concept and gives the Decision Engine the visual soul it lacks.",
+      "Vouch Crests from The Floor: attach earned, attributable host crests to The Call's Pool Beacons so the 'vouch or 2 mutuals' trust gate has a visible, nightlife-native symbol at the join decision moment \u2014 trust infrastructure on a map is a moat no incumbent has.",
+      "The BPM pill and heat tempo from Pulse: adopt 'Velmont: 128 BPM' as the city-level signature and let beacon pulse tempo encode fill-rate \u2014 a one-number brand hook that is marketable (posters, widgets, push copy) and adds information without adding UI.",
+      "Night Tide forecast/scrubber from Pulse: fold the 8pm\u20133am tide bar with ghosted forecast into The Call's ambient layer \u2014 'peaks at 11' is decide-before-you-leave utility, and per-city forecast quality is a compounding data moat that strengthens the ranking engine's credibility.",
+      "Afterglow from The Floor/Pulse: the Sunday footprint replay, crew streak flame, and group home-bar loyalty marks are the best-developed answer to the Tuesday-open problem \u2014 bolt them onto The Call's off-peak map, which is currently its thinnest layer.",
+      "'Put this place on the map' posting frame (both losers): keep this exact framing for The Call's Pulse stories \u2014 it converts posting from vanity into civic contribution and feeds the evidence rows.",
+      "Constellation aggregate marks from Pulse: use the star-cluster aesthetic for anonymous '3 crews here' counts below the Beacon threshold, preserving group-first grammar even for non-broadcasting crews."
+    ]
+  }
+]
