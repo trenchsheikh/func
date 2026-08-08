@@ -1393,6 +1393,38 @@ function photoSlot(meId, index, gradient, photo) {
     onclick: () => fileInput.click() }, [fileInput]);
 }
 
+// Reuses Engine.completeProfile — the same call the auth flow makes at
+// signup — so editing later is the same real write, not a second system.
+// Business name isn't editable here: nothing else in the data model
+// derives a display name from anywhere but S.businesses[].name at creation,
+// so renaming would need every table/afters host-label lookup revisited —
+// left alone rather than half-wired.
+function editProfileSheet(meId, acc, meLike, scr) {
+  const isBiz = acc.role === 'business';
+  const inputStyle = { background: 'var(--surface-2)', border: 'none', borderRadius: '10px', padding: '12px',
+    color: 'var(--fg)', width: '100%', marginBottom: '10px', fontSize: '14px' };
+  const nameInput = isBiz ? null : h('input', Object.assign({ placeholder: 'Name', value: meLike.name || '' }, { style: inputStyle }));
+  const bioInput = h('textarea', Object.assign({ placeholder: isBiz ? 'What you run, in a line.' : 'A line about you.' },
+    { style: Object.assign({}, inputStyle, { minHeight: '76px', fontFamily: 'var(--ui)', resize: 'vertical' }) }));
+  bioInput.value = meLike.bio || '';
+  const igInput = isBiz ? null : h('input', Object.assign({ placeholder: '@instagram (optional)', value: meLike.ig || '' }, { style: inputStyle }));
+
+  openSheet(h('div', { class: 'pad' }, [
+    h('h2', { class: 'd2', text: 'Edit profile' }),
+    h('div', { style: { height: '14px' } }),
+    nameInput, bioInput, igInput,
+    h('div', { style: { height: '10px' } }),
+    h('button', { class: 'btn', text: 'Save', onclick: () => {
+      const fields = { bio: bioInput.value.trim() };
+      if (nameInput && nameInput.value.trim()) fields.name = nameInput.value.trim();
+      if (igInput) fields.ig = igInput.value.trim();
+      Engine.completeProfile(meId, fields);
+      closeSheet();
+      scr._reset();
+    } }),
+  ]));
+}
+
 /* ---- Profile ------------------------------------------------------------ */
 function buildMe() {
   const scr = h('div', { class: 'screen', 'data-id': 'me' });
@@ -1403,9 +1435,48 @@ function buildMe() {
     // Resolved fresh on every repaint — Profile shows whoever is currently
     // active (your own account normally; a QA-switched persona while testing).
     const meId = Engine.getActivePersonaId();
+
+    // A business persona has no S.people entry at all — it lives in
+    // S.businesses. Rendering it through the person-shaped view below would
+    // just show a broken "?" profile, so it gets its own simple summary
+    // instead (their real day-to-day control panel is the Inbox tab).
+    const biz = byId(S.businesses, meId);
+    if (biz) {
+      const bizAcc = Engine.getAccount(meId);
+      // Only offer to log out of the session that's actually yours — a
+      // seed business (no real account) or a QA-switched-to persona that
+      // isn't the real signed-in session must never expose a button that
+      // would silently sign a *different*, still-logged-in account out.
+      const isHome = meId === Engine.getHomePersonaId();
+      body.appendChild(h('div', { class: 'pad' }, [
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '20px' } }, [
+          h('h1', { class: 'd1', text: biz.name }),
+          biz.verified ? h('span', { html: I.verified, style: { width: '19px', color: 'var(--gold)', display: 'flex' } }) : null,
+        ]),
+        h('div', { class: 'small', style: { marginTop: '4px' }, text: 'Business account · San Francisco' }),
+        h('div', { class: 'between', style: { margin: '16px 0' } }, [
+          biz.bio ? h('p', { class: 'body', style: { margin: 0 }, text: biz.bio }) : h('p', { class: 'small', text: 'No bio yet.' }),
+          bizAcc ? h('button', { class: 'btn quiet sm', text: 'Edit', style: { width: 'auto', flex: 'none' },
+            onclick: () => editProfileSheet(meId, bizAcc, { bio: biz.bio }, scr) }) : null,
+        ]),
+        h('div', { style: { display: 'flex', gap: '10px', marginBottom: '18px' } }, [
+          statCard('Venues run', String(biz.venueIds.length), '#fff'),
+          statCard('Tables tonight', String(S.tables.filter(t => t.businessId === biz.id).length), '#fff'),
+        ]),
+        h('p', { class: 'small', text: 'Post tables, claim venues and manage requests from the Inbox tab.' }),
+        Engine.mode === 'real' && isHome ? h('button', { class: 'btn ghost', style: { marginTop: '14px' }, text: 'Log out', onclick: () => {
+          Engine.logout(); location.reload();
+        } }) : null,
+      ]));
+      return;
+    }
+
     const me = byId(S.people, meId) || { name: '?', initial: '?', ig: '', bio: '', nights: 0, spots: 0, tokens: 0 };
     const acc = Engine.getAccount(meId);
     const idVerified = acc ? acc.verification.status === 'verified' : !!me.verified;
+    // Same reasoning as the business branch above: only your own real,
+    // currently-logged-in session gets a Log out button.
+    const isHome = meId === Engine.getHomePersonaId();
 
     body.appendChild(h('div', { style: { position: 'relative', height: '190px',
       background: 'linear-gradient(160deg, var(--em-lo), #04070A)' } }, [
@@ -1435,7 +1506,11 @@ function buildMe() {
             text: idVerified ? 'Government ID checked. This is a real person.' : 'This persona has no ID verification on record.' }),
         ]),
       ]),
-      me.bio ? h('p', { class: 'body', style: { margin: '16px 0' }, text: me.bio }) : null,
+      h('div', { class: 'between', style: { margin: '16px 0' } }, [
+        me.bio ? h('p', { class: 'body', style: { margin: '0' }, text: me.bio }) : h('p', { class: 'small', text: 'No bio yet.' }),
+        acc ? h('button', { class: 'btn quiet sm', text: 'Edit', style: { width: 'auto', flex: 'none' },
+          onclick: () => editProfileSheet(meId, acc, me, scr) }) : null,
+      ]),
 
       // photos
       h('div', { class: 'lab', style: { marginBottom: '9px' }, text: 'Photos — tap a slot to upload' }),
@@ -1463,7 +1538,7 @@ function buildMe() {
       h('button', { class: 'btn ghost', text: 'Customise ' + st.petName, onclick: () => toast(st.petName + ' has 40 looks. Scripted here.') }),
       // Real mode only — the demo's one persona is fixed for the pitch
       // script, and there's nothing real to log out of there.
-      Engine.mode === 'real' && acc ? h('button', { class: 'btn ghost', style: { marginTop: '10px' }, text: 'Log out', onclick: () => {
+      Engine.mode === 'real' && acc && isHome ? h('button', { class: 'btn ghost', style: { marginTop: '10px' }, text: 'Log out', onclick: () => {
         Engine.logout();
         location.reload();
       } }) : null,
