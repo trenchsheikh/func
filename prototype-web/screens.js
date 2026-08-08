@@ -1461,6 +1461,12 @@ function buildMe() {
           onclick: () => { setAfters(!st.afters); scr._reset(); } }),
       ]),
       h('button', { class: 'btn ghost', text: 'Customise ' + st.petName, onclick: () => toast(st.petName + ' has 40 looks. Scripted here.') }),
+      // Real mode only — the demo's one persona is fixed for the pitch
+      // script, and there's nothing real to log out of there.
+      Engine.mode === 'real' && acc ? h('button', { class: 'btn ghost', style: { marginTop: '10px' }, text: 'Log out', onclick: () => {
+        Engine.logout();
+        location.reload();
+      } }) : null,
     ]));
   };
   return scr;

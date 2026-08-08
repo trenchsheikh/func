@@ -301,7 +301,15 @@ window.STORE = (function () {
 
   function getAccount(actorId) { return root.accounts[actorId] || null; }
   function getSessionPersonId() { return root.session.personId; }
-  function logout() { root.session.personId = null; persist(); emit('change', {}); }
+  function logout() {
+    root.session.personId = null;
+    // Also drop the QA persona-switcher's per-tab override — otherwise
+    // whoever signs in next on this tab would silently inherit whichever
+    // persona was last being tested as, instead of actually being logged
+    // out and back in as themselves.
+    try { sessionStorage.removeItem(PERSONA_KEY); } catch (e) {}
+    persist(); emit('change', {});
+  }
 
   function resolveVerification(actorId) {
     const cur = root.accounts[actorId]; if (!cur || cur.verification.status !== 'pending') return;
