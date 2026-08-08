@@ -1754,8 +1754,10 @@ function mount(phone) {
   Engine.on('store:change', () => {
     paintStatusChips();
     // Keep whichever tab-screen is currently visible honest about live
-    // (possibly cross-tab) state, without forcing a reload.
-    if (st.screen !== 'map' && screensList[st.screen]) screensList[st.screen]._reset();
+    // (possibly cross-tab) state, without forcing a reload — including the
+    // map itself, e.g. a story expiring or heat changing while it's open.
+    if (st.screen === 'map') drawMarks();
+    else if (screensList[st.screen]) screensList[st.screen]._reset();
   });
   paintStatusChips();
 }

@@ -113,6 +113,22 @@ window.STORE = (function () {
     });
   }
 
+  // Stories expire — without this they'd fade dimmer on the story ring
+  // forever but never actually leave the map, which isn't how "story" has
+  // ever worked in any product that uses the word. Only applies to
+  // real, dynamically-posted stories (a postedAt timestamp) — the static
+  // seed stories have no real post time to expire against.
+  const STORY_EXPIRY_MS = 6 * 60 * 60 * 1000;
+  function expireOldStories() {
+    const t = now();
+    const stale = root.newStories.filter((st) => st.postedAt && t - st.postedAt > STORY_EXPIRY_MS);
+    if (!stale.length) return;
+    const staleIds = new Set(stale.map((st) => st.id));
+    root.newStories = root.newStories.filter((st) => !staleIds.has(st.id));
+    S.stories = S.stories.filter((st) => !staleIds.has(st.id));
+    persist(); emit('change', {});
+  }
+
   function expireStaleStatuses() {
     let changed = false;
     const t = now();
@@ -129,6 +145,7 @@ window.STORE = (function () {
 
   function tick() {
     expireStaleStatuses();
+    expireOldStories();
     applyOverlay(); // re-ages newStories' `mins` even when nothing else changed
     emit('tick', {});
   }
@@ -138,6 +155,7 @@ window.STORE = (function () {
     root = load();
     applyOverlay();
     expireStaleStatuses();
+    expireOldStories();
     rearmPendingVerifications();
     setInterval(tick, 60000);
     window.addEventListener('storage', (e) => {
