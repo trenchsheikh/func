@@ -1157,6 +1157,10 @@ function businessDashboard(biz) {
     (S.businesses || []).forEach(b => b.venueIds.forEach(id => claimed.add(id)));
     const avail = S.venues.filter(v => !claimed.has(v.id));
     wrap.appendChild(h('p', { class: 'body', style: { margin: '4px 0 14px' }, text: 'Claim the venue you run to start posting tables.' }));
+    if (!avail.length) {
+      wrap.appendChild(h('p', { class: 'small', text: 'Every venue in San Francisco is already claimed by a business. Nothing left to claim right now.' }));
+      return wrap;
+    }
     wrap.appendChild(h('div', { class: 'gap' }, avail.map(v => h('div', { class: 'card', style: { padding: '13px', display: 'flex', alignItems: 'center', gap: '11px' } }, [
       h('div', { class: 'grow' }, [
         h('div', { style: { fontWeight: '700', fontSize: '14.5px' }, text: v.name }),
