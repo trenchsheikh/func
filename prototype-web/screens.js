@@ -213,6 +213,14 @@ function statusSheet() {
    what drawMarks() puts on the map. Trimmed to only what the data can back:
    no "party size" (nothing on the map is party-size-aware) and "Who" is
    just "green only", since there's no per-viewer friend graph to filter on. */
+// Filter state lives on st (not Engine), so it never fires 'store:change' —
+// the map redraws itself via the drawMarks() calls beside every toggle, but
+// Browse needs the same nudge or its deck stays stale until the tab is
+// next revisited, even though the same sheet just told you it applied.
+function refreshBrowseIfOpen() {
+  if (st.screen === 'browse' && screensList.browse) screensList.browse._reset();
+}
+
 const VIBE_WORDS = ['Big night', 'Chilled', 'Dressy', 'Dive', 'Queer', 'Techno', 'House', 'Disco', 'Live'];
 const COST_OPTS = [{ l: 'Free entry', v: 0 }, { l: 'Under $20', v: 20 }, { l: 'Under $40', v: 40 }, { l: 'Anything', v: null }];
 const DIST_OPTS = [{ l: 'Walking', v: 0.5 }, { l: 'Under 2 mi', v: 2 }, { l: 'Anywhere in SF', v: null }];
@@ -220,7 +228,7 @@ const DIST_OPTS = [{ l: 'Walking', v: 0.5 }, { l: 'Under 2 mi', v: 2 }, { l: 'An
 function filterSheet() {
   function multiChip(label, on, toggle) {
     const c = h('div', { class: 'chip' + (on ? ' on' : ''), text: label, onclick: () => {
-      toggle(); c.classList.toggle('on'); drawMarks();
+      toggle(); c.classList.toggle('on'); drawMarks(); refreshBrowseIfOpen();
     } });
     return c;
   }
@@ -231,7 +239,7 @@ function filterSheet() {
         set(o.v);
         Array.from(row.children).forEach(c => c.classList.remove('on'));
         chip.classList.add('on');
-        drawMarks();
+        drawMarks(); refreshBrowseIfOpen();
       } });
       row.appendChild(chip);
     });
@@ -245,7 +253,7 @@ function filterSheet() {
       h('h2', { class: 'd2', text: 'Filter' }),
       h('div', { class: 'btn quiet sm', text: 'Clear all', style: { width: 'auto' }, onclick: () => {
         st.filters.clear(); st.filterVibe.clear(); st.filterCost = null; st.filterDistance = null; st.filterGreenOnly = false;
-        drawMarks(); filterSheet();
+        drawMarks(); refreshBrowseIfOpen(); filterSheet();
       } }),
     ]),
     h('p', { class: 'body', style: { margin: '6px 0 18px' }, text: 'All optional. Add as much or as little as you want.' }),
@@ -259,7 +267,7 @@ function filterSheet() {
       multiChip('Green only', st.filterGreenOnly, () => { st.filterGreenOnly = !st.filterGreenOnly; })])),
     h('div', { style: { height: '8px' } }),
     h('button', { class: 'btn', text: 'Show me', onclick: () => {
-      closeSheet(); buzz(10);
+      closeSheet(); buzz(10); refreshBrowseIfOpen();
       const n = S.venues.filter(passesFilter).length;
       Pet.speak(n ? n + ' place' + (n === 1 ? '' : 's') + ' match on the map right now.' : 'Nothing matches that combination — try loosening one.', 4600);
     } }),
@@ -689,11 +697,18 @@ function toast(msg) {
 }
 
 /* ---- Browse: swipe anything (dopamine #3) ------------------------------- */
+// Same passesFilter() the map uses — the sliders icon on this screen opens
+// the identical sheet, so it has to actually change this deck too, not
+// just look like it does because it opens the same UI.
 function browseItems() {
   const items = [];
-  S.venues.forEach(v => items.push({ kind: v.kind, title: v.name, sub: v.district + ' · ' + v.vibe.join(' · '),
-    meta: v.entry[1] ? money(v.entry[0], v.entry[1]) + ' in' : 'Free entry', heat: v.heat, v, g: ['#0E3D2E', '#061118'] }));
+  S.venues.forEach(v => {
+    if (!passesFilter(v)) return;
+    items.push({ kind: v.kind, title: v.name, sub: v.district + ' · ' + v.vibe.join(' · '),
+      meta: v.entry[1] ? money(v.entry[0], v.entry[1]) + ' in' : 'Free entry', heat: v.heat, v, g: ['#0E3D2E', '#061118'] });
+  });
   S.tables.forEach(t => { const v = byId(S.venues, t.venue);
+    if (!v || !passesFilter(v)) return;
     items.push({ kind: 'table', title: t.name, sub: v.name + ' · ' + t.vibe, meta: '$' + t.perHead + ' per head',
       heat: .8, v, t, g: ['#123A52', '#06131C'] }); });
   S.afters.forEach(a => items.push({ kind: 'after', title: a.host + '’s after-party', sub: a.area + ' · ' + a.vibe.join(' · '),
