@@ -1,0 +1,371 @@
+/* ==========================================================================
+   Func. — design system
+   Deep emerald / near-black / white. Every colour means something:
+   emerald = life & energy, amber = partial, red = closed, white = you.
+   Nothing decorative. No emoji as iconography, anywhere.
+   ========================================================================== */
+
+:root {
+  /* ground — near-black, cinematic, no blue cast */
+  --ink:        #000000;   /* the city floor */
+  --ink-2:      #05070A;   /* map ground */
+  --surface:    #0B0D10;   /* sheets, cards */
+  --surface-2:  #14171B;   /* raised rows */
+  --surface-3:  #1D2126;   /* pressed / input */
+  --hairline:   rgba(255,255,255,.13);
+  --hairline-2: rgba(255,255,255,.07);
+
+  /* chrome — the interface language. Liquid metal, not colour. */
+  --chrome: linear-gradient(160deg,#FFFFFF 0%,#D6DCE2 18%,#8C949C 40%,
+                            #F2F5F8 58%,#9AA2AA 76%,#E8ECF0 92%,#B4BCC4 100%);
+  --chrome-soft: linear-gradient(160deg,#F4F6F8,#AEB6BE 45%,#EDF1F4 70%,#98A0A8);
+  --chrome-line: rgba(233,238,243,.85);
+  --glass:   rgba(255,255,255,.055);
+  --glass-2: rgba(255,255,255,.10);
+
+  /* emerald — the energy of the city */
+  --em:      #12E08A;
+  --em-hi:   #46FFB4;
+  --em-lo:   #0B7A5B;
+  --em-deep: #063D2E;
+  --em-glow: rgba(18,224,138,.55);
+
+  /* status — traffic light */
+  --green: #12E08A;
+  --amber: #F5A623;
+  --red:   #F2544B;
+  --disco: #C8A2FF;
+  --gold:  #F5C542;
+
+  /* type */
+  --fg:     #FFFFFF;
+  --fg-2:   #A9B6C2;
+  --fg-3:   #6D7C89;
+  --fg-4:   #47535E;
+
+  /* geometry */
+  --r-sm: 10px;  --r-md: 16px;  --r-lg: 22px;  --r-xl: 30px;
+  --tap: 44px;
+
+  --display: 'Avenir Next Condensed', 'HelveticaNeue-CondensedBold',
+             'Roboto Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui,
+        'Segoe UI', Roboto, sans-serif;
+
+  /* motion */
+  --spring: cubic-bezier(.22,1.2,.36,1);
+  --ease:   cubic-bezier(.32,.72,0,1);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: #000;
+  font-family: var(--ui);
+  color: var(--fg);
+  overscroll-behavior: none;
+}
+
+/* ---- Phone frame: full-bleed on a phone, framed on a desktop ------------ */
+#stage {
+  position: fixed; inset: 0;
+  display: grid; grid-template-columns: 100%; grid-template-rows: 100%;
+  place-items: center;
+  background:
+    radial-gradient(1200px 800px at 50% 20%, #0A1118 0%, #000 70%);
+}
+#phone {
+  position: relative;
+  width: 100%; height: 100%;
+  max-width: 100%; max-height: 100%;
+  background: var(--ink);
+  overflow: hidden;
+  isolation: isolate;
+}
+@media (min-width: 760px) and (min-height: 720px) {
+  #phone {
+    width: 390px; height: 844px;
+    border-radius: 54px;
+    box-shadow:
+      0 0 0 11px #0d1115,
+      0 0 0 13px #23292f,
+      0 60px 120px -20px rgba(0,0,0,.9),
+      0 0 140px -30px rgba(18,224,138,.22);
+  }
+  #phone::after {  /* notch */
+    content: ''; position: absolute; top: 9px; left: 50%;
+    transform: translateX(-50%);
+    width: 108px; height: 30px; border-radius: 16px;
+    background: #000; z-index: 90; pointer-events: none;
+  }
+}
+
+/* ---- Screens ------------------------------------------------------------ */
+.screen {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+.screen.on { display: flex; }
+.scroll {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+.sheet .scroll { padding-bottom: 0; }
+.scroll::-webkit-scrollbar { display: none; }
+
+/* ---- Type --------------------------------------------------------------- */
+.d1, .d2, .d3 {
+  font-family: var(--display);
+  font-weight: 700; text-transform: uppercase;
+  letter-spacing: .01em; margin: 0; line-height: .92;
+}
+.d1 { font-size: 40px; }
+.d2 { font-size: 27px; }
+.d3 { font-size: 19px; letter-spacing: .04em; }
+.lab {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--fg-3);
+}
+.body  { font-size: 14.5px; line-height: 1.45; color: var(--fg-2); margin: 0; }
+.small { font-size: 12.5px; color: var(--fg-3); }
+.num   { font-variant-numeric: tabular-nums; }
+
+/* ---- Buttons ------------------------------------------------------------ */
+/* Primary actions are chrome. The only colour in the interface is the city
+   being alive — heat, the traffic light, a live story. Nothing else. */
+.btn {
+  appearance: none; border: 0; cursor: pointer;
+  font-family: var(--ui); font-size: 15px; font-weight: 650;
+  min-height: var(--tap); padding: 0 20px;
+  border-radius: 999px; color: #0A0D10;
+  background: var(--chrome);
+  box-shadow: 0 8px 26px -8px rgba(226,234,242,.35),
+              inset 0 1px 0 rgba(255,255,255,.85),
+              inset 0 -1px 0 rgba(0,0,0,.18);
+  transition: transform .16s var(--spring), filter .16s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+}
+.btn:active { transform: scale(.965); filter: brightness(1.08); }
+.btn.ghost {
+  background: var(--surface-2); color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.btn.quiet { background: transparent; color: var(--fg-2); box-shadow: none; }
+.btn.sm { min-height: 36px; font-size: 13.5px; padding: 0 14px; width: auto; }
+
+/* ---- Chips -------------------------------------------------------------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 13px; border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+  font-size: 12.5px; font-weight: 600; color: var(--fg-2);
+  white-space: nowrap; cursor: pointer;
+  transition: all .18s var(--spring);
+}
+.chip.on {
+  background: rgba(255,255,255,.16); color: #FFFFFF;
+  box-shadow: inset 0 0 0 1px rgba(240,246,251,.55);
+}
+/* the one exception: a chip that reports something alive */
+.chip.live {
+  background: rgba(18,224,138,.15); color: var(--em-hi);
+  box-shadow: inset 0 0 0 1px rgba(18,224,138,.45);
+}
+.chip:active { transform: scale(.94); }
+.chiprow {
+  display: flex; gap: 8px; overflow-x: auto; padding: 0 16px;
+  scrollbar-width: none;
+}
+.chiprow::-webkit-scrollbar { display: none; }
+
+/* ---- Traffic light ------------------------------------------------------ */
+.tl { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.tl.green { background: var(--green); box-shadow: 0 0 9px var(--green); }
+.tl.amber { background: var(--amber); box-shadow: 0 0 9px var(--amber); }
+.tl.red   { background: var(--red); }
+.tl.disco {
+  background: conic-gradient(#C8A2FF,#46FFB4,#F5C542,#F55B8A,#C8A2FF);
+  box-shadow: 0 0 10px var(--disco);
+}
+
+/* ---- Avatars ------------------------------------------------------------ */
+.av {
+  width: 34px; height: 34px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  font-family: var(--display); font-size: 15px; font-weight: 700;
+  color: #04120C; position: relative;
+  background: linear-gradient(150deg, var(--em-hi), var(--em-lo));
+}
+.av.sm { width: 26px; height: 26px; font-size: 12px; }
+.av.lg { width: 60px; height: 60px; font-size: 25px; }
+.av[data-s="amber"] { background: linear-gradient(150deg,#FFD37A,#B4751A); }
+.av[data-s="red"]   { background: linear-gradient(150deg,#5A646E,#333B43); color:#0A0E12; }
+.av[data-s="disco"] { background: conic-gradient(#C8A2FF,#46FFB4,#F5C542,#F55B8A,#C8A2FF); }
+.avstack { display: flex; }
+.avstack .av { margin-left: -9px; box-shadow: 0 0 0 2px var(--surface); }
+.avstack .av:first-child { margin-left: 0; }
+
+/* ---- Sheets ------------------------------------------------------------- */
+.scrim {
+  position: absolute; inset: 0; z-index: 60;
+  background: rgba(0,4,2,.62);
+  backdrop-filter: blur(3px);
+  opacity: 0; pointer-events: none; transition: opacity .28s var(--ease);
+}
+.scrim.on { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 61;
+  background: linear-gradient(180deg, var(--surface) 0%, #070C11 100%);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  box-shadow: 0 -1px 0 var(--hairline), 0 -30px 60px -20px rgba(0,0,0,.9);
+  transform: translateY(102%);
+  transition: transform .42s var(--spring);
+  max-height: 88%; display: flex; flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.sheet.on { transform: translateY(0); }
+.grab {
+  width: 38px; height: 4px; border-radius: 4px; margin: 10px auto 4px;
+  background: rgba(255,255,255,.18); flex: none;
+}
+
+/* ---- Rows / cards ------------------------------------------------------- */
+.row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 16px; min-height: 56px;
+  border-bottom: 1px solid var(--hairline-2);
+}
+.row:active { background: rgba(255,255,255,.035); }
+.card {
+  background: var(--surface); border-radius: var(--r-lg);
+  box-shadow: inset 0 0 0 1px var(--hairline-2);
+  overflow: hidden;
+}
+
+/* ---- Tab bar ------------------------------------------------------------ */
+#tabs {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 50;
+  height: 62px; display: flex; align-items: stretch;
+  background: rgba(6,10,14,.82);
+  backdrop-filter: blur(22px) saturate(1.4);
+  border-top: 1px solid var(--hairline-2);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tab {
+  flex: 1; position: relative; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  cursor: pointer; color: var(--fg-4);
+  transition: color .2s;
+}
+.tab .tlab { font-size: 9.5px; font-weight: 650; letter-spacing: .04em; }
+.tab.on { color: #FFFFFF; }
+.tab svg { width: 22px; height: 22px; }
+.tab#tab-map { position: relative; }
+.tab#tab-map .eye {
+  width: 50px; height: 50px; border-radius: 50%;
+  margin-top: -22px;
+  display: grid; place-items: center;
+  background: linear-gradient(180deg,#0E1A22,#060C11);
+  box-shadow: 0 0 0 1px rgba(18,224,138,.35),
+              0 10px 26px -8px rgba(18,224,138,.5);
+  transition: transform .3s var(--spring);
+}
+.tab#tab-map.on .eye {
+  background: var(--chrome);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.75), 0 12px 30px -6px rgba(226,234,242,.4);
+}
+.tab#tab-map.on .eye svg { color: #0A0D10; }
+.tab#tab-map .eye svg { width: 26px; height: 26px; color: #C9D2DA; }
+.tab:active .eye { transform: scale(.9); }
+.badge {
+  position: absolute; top: 7px; left: 50%; margin-left: 6px;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 9px; background: var(--chrome);
+  color: #0A0D10; font-size: 10.5px; font-weight: 800;
+  display: grid; place-items: center;
+  box-shadow: 0 0 0 2.5px rgba(6,10,14,.9);
+}
+
+/* ---- Map ---------------------------------------------------------------- */
+#mapwrap { position: absolute; inset: 0; overflow: hidden; background: var(--ink-2); }
+#mapsvg { position: absolute; top: 0; left: 0; will-change: transform; }
+.mk { cursor: pointer; }
+
+#mapui { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+#mapui > * { pointer-events: auto; }
+
+.topbar {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: calc(env(safe-area-inset-top) + 12px) 0 12px;
+  background: linear-gradient(180deg, rgba(4,7,10,.92) 30%, transparent);
+}
+.searchrow { display: flex; gap: 8px; padding: 0 16px 10px; align-items: center; }
+.search {
+  flex: 1; height: 42px; border-radius: 999px;
+  background: rgba(255,255,255,.07);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  display: flex; align-items: center; gap: 9px; padding: 0 15px;
+  color: var(--fg-3); font-size: 14px;
+}
+.iconbtn {
+  width: 42px; height: 42px; border-radius: 50%; flex: none;
+  background: rgba(255,255,255,.07);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  display: grid; place-items: center; cursor: pointer; color: var(--fg);
+  transition: transform .18s var(--spring);
+}
+.iconbtn:active { transform: scale(.9); }
+.iconbtn.acc { background: var(--chrome); color: #0A0D10; }
+
+/* ---- Swipe deck --------------------------------------------------------- */
+.deck { position: absolute; inset: 0; display: grid; place-items: center; }
+.swipecard {
+  position: absolute; width: 87%; height: 74%;
+  border-radius: 26px; overflow: hidden;
+  background: var(--surface);
+  box-shadow: 0 30px 60px -20px rgba(0,0,0,.9), inset 0 0 0 1px var(--hairline);
+  will-change: transform;
+}
+.stamp {
+  position: absolute; top: 30px; font-family: var(--display);
+  font-size: 34px; font-weight: 700; letter-spacing: .06em;
+  padding: 7px 16px; border-radius: 12px; opacity: 0;
+  border: 3px solid currentColor; text-transform: uppercase;
+}
+.stamp.yes { left: 22px; color: var(--em-hi); transform: rotate(-13deg); }
+.stamp.no  { right: 22px; color: var(--red);  transform: rotate(13deg); }
+
+/* ---- Pass --------------------------------------------------------------- */
+.pass {
+  border-radius: 24px; overflow: hidden; position: relative;
+  background: linear-gradient(160deg,#1A1F25,#07090C 62%);
+  box-shadow: inset 0 0 0 1px rgba(226,234,242,.30),
+              0 24px 60px -18px rgba(200,214,228,.28);
+}
+.pass::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(120% 70% at 50% -20%, rgba(226,234,242,.22), transparent 70%);
+}
+
+/* ---- Utility ------------------------------------------------------------ */
+.pad { padding: 16px; }
+.gap { display: flex; flex-direction: column; gap: 10px; }
+.between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.grow { flex: 1; min-width: 0; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hair { height: 1px; background: var(--hairline-2); }
+.center { text-align: center; }
+
+/* Afters mode: the app changes personality after midnight */
+#phone.afters {
+  --ink: #06040A; --ink-2: #0A0710;
+  --surface: #120C1A; --surface-2: #1A1226; --surface-3: #241933;
+  --em: #C8A2FF; --em-hi: #E4D0FF; --em-lo: #6B44B8;
+  --em-glow: rgba(200,162,255,.55);
+}
