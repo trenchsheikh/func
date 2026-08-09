@@ -314,7 +314,10 @@ window.STORE = (function () {
   function resolveVerification(actorId) {
     const cur = root.accounts[actorId]; if (!cur || cur.verification.status !== 'pending') return;
     const age = cur.dob ? ageFromDob(cur.dob) : null;
-    const ageOk = cur.role === 'business' || age == null || age >= 18;
+    // An age that can't be determined (missing/unparseable dob) must fail the
+    // check, not pass it — this is the 18+ hard block, so the safe default is
+    // reject, never "assume adult."
+    const ageOk = cur.role === 'business' || (age != null && age >= 18);
     cur.verification.status = ageOk ? 'verified' : 'rejected';
     cur.verification.verifiedAt = now();
     if (ageOk) {
@@ -479,6 +482,16 @@ window.STORE = (function () {
     return { ok: true, alreadyCounted: false };
   }
 
+  // ---- nights: a real running total, incremented once per accepted
+  // request (table or after-party) — the moment a guest is genuinely
+  // confirmed in for the night. Mirrors dropSpot/visitSpot's pattern of
+  // mutating the live S.people record directly. -------------------------
+  function incrementNights(personId) {
+    const p = byIdLocal(S.people, personId);
+    if (p) p.nights = (p.nights || 0) + 1;
+    persist(); emit('change', {});
+  }
+
   // ---- saved items: Browse's swipe-right on a venue/spot used to just
   // toast "Saved" with nothing behind it — this makes that claim true. -----
   function saveItem(personId, kind, refId) {
@@ -511,12 +524,15 @@ window.STORE = (function () {
 
   // ---- derived capacity: table/after-party counts move for real when a
   // request is actually accepted, instead of sitting frozen at their seed
-  // value forever -------------------------------------------------------
+  // value forever. Sums partySize, not request count — a party of 6
+  // consumes 6 seats, not 1, or capacity means nothing. ------------------
   function acceptedCountForTable(tableId) {
-    return root.requests.filter((r) => r.tableId === tableId && r.status === 'accepted').length;
+    return root.requests.filter((r) => r.tableId === tableId && r.status === 'accepted')
+      .reduce((sum, r) => sum + (r.partySize || 1), 0);
   }
   function acceptedCountForAfter(afterId) {
-    return root.requests.filter((r) => r.afterId === afterId && r.status === 'accepted').length;
+    return root.requests.filter((r) => r.afterId === afterId && r.status === 'accepted')
+      .reduce((sum, r) => sum + (r.partySize || 1), 0);
   }
   function tableSpotsLeft(table) {
     if (!table) return 0;
@@ -539,7 +555,7 @@ window.STORE = (function () {
     createAccount, getAccount, getSessionPersonId, logout,
     submitVerification, completeProfile, completeOnboarding, setPremium, uploadPhoto,
     claimVenue, postTable,
-    dropSpot, visitSpot, hasVisited,
+    dropSpot, visitSpot, hasVisited, incrementNights,
     saveItem, unsaveItem, getSavedItems,
     checkIn, activeCheckin,
     postStory,

@@ -77,12 +77,13 @@ window.Engine = (function () {
     if (!request) return { ok: false, reason: 'not_found' };
     if (request.status !== 'pending') return { ok: false, reason: 'already_resolved' };
     if (actingPersonaId !== request.hostId) return { ok: false, reason: 'not_authorized' };
+    const partySize = request.partySize || 1;
     if (request.kind === 'after') {
       const after = STORE.getAfter(request.afterId);
-      if (after && STORE.afterGoingCount(after) >= after.capacity) return { ok: false, reason: 'at_capacity' };
+      if (after && STORE.afterGoingCount(after) + partySize > after.capacity) return { ok: false, reason: 'at_capacity' };
     } else if (request.tableId) {
       const table = STORE.getTable(request.tableId);
-      if (table && STORE.tableSpotsLeft(table) <= 0) return { ok: false, reason: 'at_capacity' };
+      if (table && partySize > STORE.tableSpotsLeft(table)) return { ok: false, reason: 'at_capacity' };
     }
 
     let pass = null;
@@ -94,6 +95,7 @@ window.Engine = (function () {
       });
     }
     STORE.updateRequest(request.id, { status: 'accepted', respondedAt: STORE.now(), passId: pass ? pass.id : null });
+    STORE.incrementNights(request.guestId);
     if (request.threadId) {
       STORE.addMessage({ id: STORE.uid('msg'), threadId: request.threadId, senderId: 'system',
         body: hostDisplayName(actingPersonaId) + ' accepted', sentAt: STORE.now(), readBy: [] });

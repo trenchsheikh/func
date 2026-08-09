@@ -54,6 +54,7 @@ window.Engine = (function () {
         request.status = 'accepted'; request.respondedAt = Date.now();
         const thread = seedThread(a.hostId, request.id, []);
         request.threadId = thread.id;
+        const p = byId(S.people, 'you'); if (p) p.nights = (p.nights || 0) + 1;
         emit('request:accepted', { request, after: a });
       }, 3600);
     } else {
@@ -70,6 +71,7 @@ window.Engine = (function () {
           { mine: false, body: 'we’re 10 mins away' },
         ]);
         request.threadId = thread.id;
+        const p = byId(S.people, 'you'); if (p) p.nights = (p.nights || 0) + 1;
         emit('request:accepted', { request, pass, venue: v, table: t });
       }, 4200);
     }
@@ -132,6 +134,7 @@ window.Engine = (function () {
     if (fields.name) p.name = fields.name;
     if (fields.bio != null) p.bio = fields.bio;
     if (fields.ig != null) p.ig = fields.ig;
+    emit('store:change', {});
   }
   function completeOnboarding() {}
   function setPremium(actorId, on) { const acc = _accounts[actorId]; if (acc) acc.premium = !!on; emit('store:change', {}); }
@@ -228,12 +231,14 @@ window.Engine = (function () {
 
   function tableSpotsLeft(table) {
     if (!table) return 0;
-    const accepted = _requests.filter((r) => r.tableId === table.id && r.status === 'accepted').length;
+    const accepted = _requests.filter((r) => r.tableId === table.id && r.status === 'accepted')
+      .reduce((sum, r) => sum + (r.partySize || 1), 0);
     return Math.max(0, table.left - accepted);
   }
   function afterGoingCount(after) {
     if (!after) return 0;
-    const accepted = _requests.filter((r) => r.afterId === after.id && r.status === 'accepted').length;
+    const accepted = _requests.filter((r) => r.afterId === after.id && r.status === 'accepted')
+      .reduce((sum, r) => sum + (r.partySize || 1), 0);
     return after.going + accepted;
   }
 

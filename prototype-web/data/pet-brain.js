@@ -38,8 +38,11 @@ window.PetBrain = (function () {
       if (v) out.push(`You are in at ${v.name} — the pass is in Plans whenever you need it.`);
     }
 
-    const me = byId(S.people, personId);
-    if (me && me.tokens > 0) out.push(`You have ${me.tokens} tokens from spots you have dropped.`);
+    // Derived from real spot data, not the person record's own .tokens field
+    // — that field is written at drop/visit time but never reconciled, so it
+    // drifts from what a spot's own detail sheet and Inbox actually show.
+    const myTokens = (S.spots || []).filter((sp) => sp.byId === personId).reduce((sum, sp) => sum + (sp.tokens || 0), 0);
+    if (myTokens > 0) out.push(`You have ${myTokens} tokens from spots you have dropped.`);
 
     if (Engine.getInterestReceived) {
       const interested = Engine.getInterestReceived(personId);
