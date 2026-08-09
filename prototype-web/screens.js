@@ -1245,16 +1245,20 @@ function businessDashboard(biz) {
       : h('span', { class: 'small', text: 'Verification pending' }),
   ]));
 
-  if (!biz.venueIds.length) {
-    const claimed = new Set();
-    (S.businesses || []).forEach(b => b.venueIds.forEach(id => claimed.add(id)));
-    const avail = S.venues.filter(v => !claimed.has(v.id));
-    wrap.appendChild(h('p', { class: 'body', style: { margin: '4px 0 14px' }, text: 'Claim the venue you run to start posting tables.' }));
+  // A business isn't capped at one venue (claimVenue() itself has no such
+  // limit, and seed data — Nightform — legitimately owns 2) — so the claim
+  // affordance has to survive past the first claim, not disappear once
+  // venueIds is non-empty.
+  const claimed = new Set();
+  (S.businesses || []).forEach(b => b.venueIds.forEach(id => claimed.add(id)));
+  const avail = S.venues.filter(v => !claimed.has(v.id));
+  function claimSection(heading) {
+    wrap.appendChild(h('div', { class: 'lab', style: { marginBottom: '9px' }, text: heading }));
     if (!avail.length) {
-      wrap.appendChild(h('p', { class: 'small', text: 'Every venue in San Francisco is already claimed by a business. Nothing left to claim right now.' }));
-      return wrap;
+      wrap.appendChild(h('p', { class: 'small', style: { marginBottom: '14px' }, text: 'Every venue in San Francisco is already claimed by a business. Nothing left to claim right now.' }));
+      return;
     }
-    wrap.appendChild(h('div', { class: 'gap' }, avail.map(v => h('div', { class: 'card', style: { padding: '13px', display: 'flex', alignItems: 'center', gap: '11px' } }, [
+    wrap.appendChild(h('div', { class: 'gap', style: { marginBottom: '16px' } }, avail.map(v => h('div', { class: 'card', style: { padding: '13px', display: 'flex', alignItems: 'center', gap: '11px' } }, [
       h('div', { class: 'grow' }, [
         h('div', { style: { fontWeight: '700', fontSize: '14.5px' }, text: v.name }),
         h('div', { class: 'small', text: v.district + ' · ' + v.kind }),
@@ -1264,6 +1268,11 @@ function businessDashboard(biz) {
         if (r && r.ok === false && r.reason === 'already_claimed') toast(v.name + ' is already run by ' + r.by);
       } }),
     ]))));
+  }
+
+  if (!biz.venueIds.length) {
+    wrap.appendChild(h('p', { class: 'body', style: { margin: '4px 0 14px' }, text: 'Claim the venue you run to start posting tables.' }));
+    claimSection('Available venues');
     return wrap;
   }
 
@@ -1303,6 +1312,7 @@ function businessDashboard(biz) {
       ]);
     })));
   }
+  claimSection('Claim another venue');
   return wrap;
 }
 
@@ -1402,7 +1412,9 @@ function buildInbox() {
         s: v.name + ' · tonight · from $' + Math.min(...openTables.map(t => t.perHead)) + ' a head',
         a: 'See', onclick: () => jumpToVenue(v) });
     });
-    const mySpots = S.spots.filter(sp => sp.byId === me);
+    // Gate on tokens actually earned, not just having dropped a spot — a
+    // spot with zero visits shouldn't claim "earned tokens" with 0 shown.
+    const mySpots = S.spots.filter(sp => sp.byId === me && sp.tokens > 0);
     if (mySpots.length) {
       const tokens = mySpots.reduce((sum, sp) => sum + sp.tokens, 0);
       items.push({ t: 'Your spot' + (mySpots.length > 1 ? 's' : '') + ' earned tokens', s: mySpots.map(sp => sp.name).join(', ') + ' · ' + tokens + ' tokens total', a: '' });
@@ -1478,11 +1490,21 @@ function premiumCard(meId, acc) {
 // blow past localStorage's quota.
 function photoSlot(meId, index, gradient, photo) {
   const fileInput = h('input', { type: 'file', accept: 'image/*', style: { display: 'none' } });
+  // busy guards against a second pick landing mid-decode (accept="image/*"
+  // is only a picker hint, not enforcement — most OS pickers still offer
+  // "all files") and gates re-opening the picker while one upload is still
+  // resolving, so whichever file was picked second can't be silently raced
+  // and overwritten by a slower first decode finishing later.
+  let busy = false;
+  const done = () => { busy = false; fileInput.value = ''; };
   fileInput.addEventListener('change', () => {
     const file = fileInput.files[0]; if (!file) return;
+    busy = true;
     const reader = new FileReader();
+    reader.onerror = () => { toast('Could not read that file — try another photo'); done(); };
     reader.onload = (e) => {
       const img = new Image();
+      img.onerror = () => { toast('That file is not a photo — try another'); done(); };
       img.onload = () => {
         const size = 480, s = Math.min(img.width, img.height);
         const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
@@ -1490,6 +1512,7 @@ function photoSlot(meId, index, gradient, photo) {
         canvas.width = size; canvas.height = size;
         canvas.getContext('2d').drawImage(img, sx, sy, s, s, 0, 0, size, size);
         Engine.uploadPhoto(meId, index, canvas.toDataURL('image/jpeg', 0.82));
+        done();
       };
       img.src = e.target.result;
     };
@@ -1498,7 +1521,7 @@ function photoSlot(meId, index, gradient, photo) {
   return h('div', { style: { aspectRatio: '1', borderRadius: '12px', cursor: 'pointer',
       background: photo ? `url(${photo}) center/cover` : `linear-gradient(150deg, ${gradient[0]}, ${gradient[1]})`,
       boxShadow: 'inset 0 0 0 1px var(--hairline-2)' },
-    onclick: () => fileInput.click() }, [fileInput]);
+    onclick: () => { if (!busy) fileInput.click(); } }, [fileInput]);
 }
 
 // Reuses Engine.completeProfile — the same call the auth flow makes at

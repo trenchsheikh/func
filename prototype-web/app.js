@@ -210,6 +210,10 @@ function drawMarks() {
   // local spots
   S.spots.forEach(sp => {
     if (st.filters.size && !st.filters.has('spot')) return;
+    // Spots have no vibe/cost — only search and distance apply, matching
+    // the subset of passesFilter() that's meaningful for a dropped location.
+    if (st.searchQuery && !sp.name.toLowerCase().includes(st.searchQuery.toLowerCase())) return;
+    if (st.filterDistance != null && haversineMiles(YOU_LL.lat, YOU_LL.lon, sp.lat, sp.lon) > st.filterDistance) return;
     const g = h('g', { class: 'mk', onclick: () => Screens.spot(sp) });
     g.appendChild(h('circle', { r: 9, fill: 'none', stroke: 'var(--gold)', 'stroke-width': 2, 'stroke-dasharray': '3 3' }));
     g.appendChild(h('circle', { r: 3, fill: 'var(--gold)' }));

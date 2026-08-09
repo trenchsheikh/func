@@ -508,7 +508,10 @@ window.STORE = (function () {
     const seatCount = Math.max(1, Math.floor(seats) || 1);
     const table = {
       id: uid('t'), venue: venueId, name: name || 'Table', seats: seatCount, left: seatCount,
-      perHead: Math.max(0, Math.floor(perHead) || 0), host: biz.name, hostKind: 'promoter',
+      // Round to the cent, not floor to the dollar — perHead is a real dollar
+      // amount (UI field is literally labeled "Per head ($)") and flooring
+      // silently dropped cents with no warning (e.g. $24.50 -> $24).
+      perHead: Math.max(0, Math.round((perHead || 0) * 100) / 100), host: biz.name, hostKind: 'promoter',
       businessId, vibe: vibe || '',
     };
     root.newTables.push(table);
@@ -522,9 +525,14 @@ window.STORE = (function () {
   // alongside lat/lon, same as every other spot on the map. -------------
   function dropSpot(personId, { name, note, lat, lon, x, y }) {
     const person = byIdLocal(S.people, personId);
+    // A business can drop a spot too (reachable via the persona switcher) —
+    // resolve against S.businesses as well, same as postTable's biz.name and
+    // engine-real.js's hostDisplayName(), instead of falling straight to the
+    // raw id.
+    const biz = !person ? byIdLocal(S.businesses, personId) : null;
     const spot = {
       id: uid('spot'), name: name || 'Local spot', lat, lon, x, y,
-      by: person ? person.name : personId, byId: personId, note: note || '', tokens: 0, kind: 'spot',
+      by: person ? person.name : (biz ? biz.name : personId), byId: personId, note: note || '', tokens: 0, kind: 'spot',
     };
     root.newSpots.push(spot);
     if (person) person.spots = (person.spots || 0) + 1;
