@@ -1,9 +1,16 @@
 # Func prototype-web — session handoff
 
-Written 2026-08-09, updated same day after a follow-on bug-hunt session, to
-continue this work in a fresh chat with no memory of the sessions that
-produced it. Read this first, then `README.md` in this same folder for the
-original file-by-file description.
+Written 2026-08-09, updated twice same day after two follow-on bug-hunt
+passes, to continue this work in a fresh chat with no memory of the sessions
+that produced it. Read this first, then `README.md` in this same folder for
+the original file-by-file description.
+
+**Path note**: the containing folder is `All Files/Func.` (trailing period),
+not `All Files/Func` — it was renamed mid-session 2026-08-09. Same git repo,
+same history, nothing lost; just update any saved path. There's also now a
+sibling native Xcode project (`func. - prototype 1/`, with its own `.git`) —
+untouched by this work, not part of `prototype-web/`, flagging only so it
+isn't mistaken for stray/orphaned files.
 
 ## What this phase is
 
@@ -167,6 +174,37 @@ session (see log below). A business account **is** its own actor (id starts
    QA-switched-to guest persona this time), a hardcoded "Nine minutes" for
    every after-party regardless of which one, demo mode's Cancel button
    being a dead no-op, and Post-a-table silently no-opping on invalid seats
+10. `9640d86` — Update this handoff with the above
+11. `ebf8406` — **Second bug-hunt pass (fresh session)**: no guard stopped a
+    business (or, via the persona switcher, an after-party host) from
+    requesting and self-accepting its own listing — fixed with a
+    sendRequest-level own_listing guard mirroring visitSpot's own_spot
+    check; rateNight's "Send it" silently submitted a full negative rating
+    at zero stars picked, with no cap on re-rating the same pass — now
+    disabled until a star is tapped, passes track a `rated` flag; the QA
+    persona switcher's "Reset demo data" cleared root/localStorage but left
+    every runtime-created ghost (people/businesses/tables/spots/stories)
+    and every rateNight heat mutation in place — now restores S.* and venue
+    heat from a pristine pre-overlay snapshot; demo mode's auto-accept had
+    no capacity gate at all (unlike the real-mode fix from commit 8),
+    visibly showing more people "going" than an after-party's stated
+    capacity — display now clamps at capacity (doesn't reject: demo's
+    guaranteed-accept is deliberate, not a bug); demo mode's nights-
+    increment (from commit 8) never emitted store:change, so Nights out
+    froze on Profile if the accept fired while that screen was open; an
+    open chat thread sheet, and the persona switcher's own "Act as" sheet,
+    were both missed by commit 9's onChange-rebuild mechanism and went
+    stale while open; a cancelled request's thread was mislabeled "Waiting"
+    forever and Plans' empty-state check ignored threads entirely, hiding
+    real chat history; a closed (declined/cancelled) thread's composer
+    still accepted messages with zero indication the chat was over; chat
+    lists weren't sorted by recency despite tracking lastMessageAt
+    correctly; the story composer could post after its check-in expired
+    while the sheet sat open, reporting false success; the Inbox tab badge
+    only ever grew, never cleared; rapid toasts rendered stacked directly
+    on top of each other; the map's "live now" strip froze at boot instead
+    of tracking heat/story changes; a cross-tab localStorage version
+    mismatch was silently dropped with zero signal (now console.warn's).
 
 All on `main`, nothing pushed (**no git remote configured** — per
 `standing-orders.md`, GitHub push is prepped but blocked on Phoenix running
@@ -176,27 +214,41 @@ untracked changes in the repo (`CLAUDE.md`, `docs/`, most of `team/`,
 (the Decision 012–014 docs restructuring) — **not mine, don't commit them
 as part of continuing this work** unless separately asked.
 
-**Method for commits 8–9**: a 9-agent parallel code-audit (one per feature
-area, plus one for cross-cutting architecture invariants) surfaced 20
-candidate "looks wired but isn't" suspects. Every high-confidence one was
+**Method for commits 8–9 and 11**: a fresh N-agent parallel code-audit each
+pass (9 agents pass one, 9 agents pass two with deliberately different
+lenses so it wouldn't just re-find the same things — chat/threads, saved/
+rateNight/premium/interest, check-in/stories, business-claim edges, request
+lifecycle, persona-switcher/multi-tab sync, engine parity, a UI sweep, and a
+dedicated regression check on pass one's own fixes) surfaced 20 candidates
+each round (40 total across both passes). Every high-confidence one was
 live-verified in-browser (or via direct Engine/STORE calls exercising the
 same code path the UI uses) before fixing, and every fix was re-verified
 live afterward, not just read — per standing instruction, this is
-non-negotiable. Full candidate list + verification detail is in this
-session's transcript, not reproduced here. Not fixed (deliberately, judgment
-calls — revisit if this keeps mattering): Kind/search filters in Browse
-don't narrow after-parties/spots/people (product-scope ambiguity, may be
-intentional); story freshness ring doesn't live-fade each tick (fixable in
-one line but forces a full redraw of whatever screen/sheet is open every
-60s — real UX cost for a cosmetic bug, wanted your call before accepting
-that trade); age display on Profile frozen at signup (low impact, nobody's
-prototype account lives past a birthday); Globe overlay's SF "out" count
-doesn't live-update while open (same root cause as the sheet-staleness fix,
-different code path — narrow cross-tab-only repro, lowest priority of the
-bunch). Also noticed in passing, not fixed: demo mode's Plans screen shows
-"Waiting on undefined" for pending requests (engine-demo's sendRequest never
-sets a `hostId` on the request object) — pre-existing, unrelated to this
-session's fixes, flagging for whenever demo mode gets touched again.
+non-negotiable. Full candidate lists + verification detail are in this
+session's transcript, not reproduced here.
+
+Not fixed (deliberately, judgment calls — revisit if this keeps mattering):
+Kind/search filters in Browse don't narrow after-parties/spots/people
+(product-scope ambiguity, may be intentional); story freshness ring doesn't
+live-fade each tick (fixable in one line but forces a full redraw of
+whatever screen/sheet is open every 60s — real UX cost for a cosmetic bug,
+wanted your call before accepting that trade); age display on Profile frozen
+at signup (low impact, nobody's prototype account lives past a birthday);
+Globe overlay's SF "out" count doesn't live-update while open (same root
+cause as the sheet-staleness fix, different code path — narrow cross-tab-
+only repro, lowest priority of the bunch); removing a saved item from Plans
+doesn't let Browse's swipe deck offer that card again this session (Browse's
+per-session "decided" exclusion set — added in commit 9 to fix the self-wipe
+bug — has no link back to unsaveItem; genuinely ambiguous whether "un-saving"
+should also "un-decide" it for Browse, flagged rather than guessed);
+message `readBy` field is written everywhere but read nowhere (dead
+scaffolding for an unread-indicator feature that was never built — no
+visible bug today, not worth building the feature just to use the field).
+
+Also noticed in passing, not fixed: demo mode's Plans screen shows "Waiting
+on undefined" for pending requests (engine-demo's sendRequest never sets a
+`hostId` on the request object) — pre-existing, unrelated to this session's
+fixes, flagging for whenever demo mode gets touched again.
 
 ## Honest gaps — Missing / Deferred / Ambiguous
 
@@ -303,30 +355,38 @@ not because they need revisiting):**
 ## How to run it
 
 ```bash
-cd "$HOME/Library/Mobile Documents/com~apple~CloudDocs/All Files/Func/prototype-web" && python3 -m http.server 8778
+cd "$HOME/Library/Mobile Documents/com~apple~CloudDocs/All Files/Func./prototype-web" && python3 -m http.server 8778
 ```
 Then open `http://localhost:8778/interactive.html` (real mode, where nearly
 all of the above lives) or `/index.html` (demo mode — leave it alone unless
 explicitly asked to touch the pitch script). Note: a server may already be
 running on 8778 from a prior session (`lsof -nP -iTCP:8778 -sTCP:LISTEN`)
-serving the same files — check before starting a second one.
+serving the same files — check before starting a second one. If the folder
+gets renamed again while a server is already running against it (as
+happened this session), the running process can start 500ing on every
+request even though the port is still listening — `curl -o /dev/null -w
+'%{http_code}' <url>` a known page before assuming the app is fine; if it's
+not 200, kill and restart the server from the *current* path rather than
+debugging the app itself.
 
 ## If continuing: suggested next priorities
 
 In roughly descending value, none of these blocking — pick based on what's
 actually asked for next:
-1. Another pass looking for "looks real but isn't" spots — two sessions of
-   this method have now found 12 real bugs total (6 + 6). Diminishing
-   returns aren't obvious yet; still worth a third pass before assuming the
-   well is dry. Same method: fan out a code audit for candidates, then
-   actually drive the app end-to-end to confirm each one before fixing —
-   don't fix off a code read alone.
-2. The deliberately-deferred findings from this session's audit (listed in
-   the work log above) — Kind/search filters not narrowing afters/spots/
-   people in Browse, story freshness ring not live-fading, Globe's SF count
-   going stale while open. None are blocking; the story-ring one in
-   particular needs a product call (the cheap fix has a real redraw-cost
-   trade) before touching it.
+1. Another pass looking for "looks real but isn't" spots — two audit passes
+   so far (13 bugs, then 16 more) have now found 29 real bugs total. Still
+   no sign of the well running dry; each pass used deliberately different
+   lenses so it wouldn't just re-find the same things. Worth a third pass
+   before assuming diminishing returns, but consider whether it's time to
+   switch modes — e.g. a pass that specifically hunts for regressions in
+   *this* session's 16 fixes, the way this session's regression-check lens
+   did for the session before it.
+2. The deliberately-deferred findings from both audit passes (listed in the
+   work log above) — none blocking, but two are genuine product-design
+   questions worth 30 seconds of your input rather than a guess: should
+   removing a saved item from Plans let Browse offer that card again this
+   session, and is the story freshness ring worth a redraw-cost trade to
+   fix.
 3. Local-spots economy depth (tokens currently only ever go up by 1 per
    visit — no spending/redemption exists anywhere, which may be fine or may
    be a gap depending on what Phoenix actually wants tokens to do).
