@@ -35,8 +35,23 @@ window.STORE = (function () {
   const now = () => Date.now();
   const uid = (prefix) => prefix + '_' + Math.random().toString(36).slice(2, 9);
   const byIdLocal = (arr, id) => (arr || []).find((o) => o.id === id);
-  const AGE_MS = 365.25 * 24 * 60 * 60 * 1000;
-  const ageFromDob = (dob) => { const t = Date.parse(dob); return isNaN(t) ? null : Math.floor((now() - t) / AGE_MS); };
+  // Real calendar-date math, not a 365.25-day-average divisor — the latter
+  // drifts by however many leap days fall inside a given person's span,
+  // which flips the floored result a day early or late around their actual
+  // birthday (verified: e.g. a 365.25-day divisor reports 18 a full day
+  // before a 1995-01-01 birthdate's real 18th birthday). Since this feeds
+  // the 18+ hard block, "off by a day" in the permissive direction is a
+  // real compliance bug, not just cosmetic.
+  const ageFromDob = (dob) => {
+    const t = Date.parse(dob);
+    if (isNaN(t)) return null;
+    const d = new Date(t), n = new Date(now());
+    let age = n.getUTCFullYear() - d.getUTCFullYear();
+    const beforeBirthday = (n.getUTCMonth() < d.getUTCMonth()) ||
+      (n.getUTCMonth() === d.getUTCMonth() && n.getUTCDate() < d.getUTCDate());
+    if (beforeBirthday) age--;
+    return age;
+  };
 
   let root = null;
   let applyingRemote = false;
@@ -105,12 +120,28 @@ window.STORE = (function () {
   // stories) into the same S.* arrays every other screen already reads from
   // — so a signed-up person or a posted story is a real S.people/S.stories
   // entry, not a parallel shadow list screens.js has to know about.
+  // Reconciles a live S.* array against the pristine seed snapshot plus
+  // whatever root currently says was created at runtime, removing anything
+  // that's neither — a "ghost" left behind when another tab's resetDemoData()
+  // wiped root out from under an id this tab had already pushed in. Only
+  // ever drops ids absent from both sources, so an in-place mutation on a
+  // genuine seed entry (verified flag, tokens, name edit — none of which
+  // round-trip through root) is never touched.
+  function reconcileFromRoot(liveArr, seedArr, newArr) {
+    const keep = new Set(seedArr.map((o) => o.id));
+    (newArr || []).forEach((o) => keep.add(o.id));
+    for (let i = liveArr.length - 1; i >= 0; i--) {
+      if (!keep.has(liveArr[i].id)) liveArr.splice(i, 1);
+    }
+    (newArr || []).forEach((o) => { if (!byIdLocal(liveArr, o.id)) liveArr.push(o); });
+  }
+
   function applyOverlay() {
-    (root.newPeople || []).forEach((p) => { if (!byIdLocal(S.people, p.id)) S.people.push(p); });
-    (root.newBusinesses || []).forEach((b) => { if (!byIdLocal(S.businesses, b.id)) S.businesses.push(b); });
-    (root.newStories || []).forEach((st) => { if (!byIdLocal(S.stories, st.id)) S.stories.push(st); });
-    (root.newTables || []).forEach((t) => { if (!byIdLocal(S.tables, t.id)) S.tables.push(t); });
-    (root.newSpots || []).forEach((sp) => { if (!byIdLocal(S.spots, sp.id)) S.spots.push(sp); });
+    reconcileFromRoot(S.people, SEED_SNAPSHOT.people, root.newPeople);
+    reconcileFromRoot(S.businesses, SEED_SNAPSHOT.businesses, root.newBusinesses);
+    reconcileFromRoot(S.stories, SEED_SNAPSHOT.stories, root.newStories);
+    reconcileFromRoot(S.tables, SEED_SNAPSHOT.tables, root.newTables);
+    reconcileFromRoot(S.spots, SEED_SNAPSHOT.spots, root.newSpots);
     S.people.forEach((p) => {
       const o = root.peopleStatus[p.id];
       if (o) p.status = o.status;

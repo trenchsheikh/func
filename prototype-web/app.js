@@ -972,6 +972,14 @@ function boot() {
 }
 
 function bootMain(phone) {
+  // Re-measure here, not just boot()'s initial capture — real mode can spend
+  // arbitrary time (and viewport changes, e.g. crossing the phone-frame CSS
+  // breakpoint) in the auth flow between boot() and here. Using a stale
+  // vw/vh renders the map SVG at the wrong size, mis-centered, until the
+  // next real window resize event happens to fire.
+  const rect = phone.getBoundingClientRect();
+  vw = Math.round(rect.width); vh = Math.round(rect.height);
+
   const mapWrap = buildMap();
   const mapScreen = h('div', { class: 'screen on', 'data-id': 'map' }, [mapWrap]);
 

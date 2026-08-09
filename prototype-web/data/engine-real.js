@@ -82,6 +82,12 @@ window.Engine = (function () {
     if (!request) return { ok: false, reason: 'not_found' };
     if (request.status !== 'pending') return { ok: false, reason: 'already_resolved' };
     if (actingPersonaId !== request.hostId) return { ok: false, reason: 'not_authorized' };
+    // Re-check own_listing here too, not just at creation in sendRequest — a
+    // self-request could still reach root.requests from before that guard
+    // existed (this repo's localStorage persists across sessions) or from
+    // any other write path, and accepting it is the actual point where a
+    // real seat gets consumed against nobody.
+    if (request.guestId === request.hostId) return { ok: false, reason: 'own_listing' };
     const partySize = request.partySize || 1;
     if (request.kind === 'after') {
       const after = STORE.getAfter(request.afterId);

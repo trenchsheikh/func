@@ -1449,10 +1449,16 @@ function premiumCard(meId, acc) {
         acc.premium
           ? (received.length
               ? h('div', { class: 'gap' }, received.map(i => {
+                  // A business can express interest too (Browse's swipe-right-on-person has
+                  // no role guard) — resolve against S.businesses as well, not just S.people,
+                  // so their name/initial render instead of a raw id and a '?' avatar.
                   const p = byId(S.people, i.fromId);
+                  const biz = !p ? byId(S.businesses, i.fromId) : null;
+                  const name = p ? p.name : (biz ? biz.name : i.fromId);
+                  const avSrc = p || (biz ? { initial: biz.avatarInitial, status: 'green' } : { initial: '?', status: 'green' });
                   return h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px' } }, [
-                    av(p || { initial: '?', status: 'green' }, 'sm'),
-                    h('div', { class: 'small', text: (p ? p.name : i.fromId) + ' is interested' }),
+                    av(avSrc, 'sm'),
+                    h('div', { class: 'small', text: name + ' is interested' }),
                   ]);
                 }))
               : h('p', { class: 'small', text: 'Nobody has shown interest yet — swipe on people in Browse and it works both ways.' }))
