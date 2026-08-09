@@ -194,6 +194,11 @@ function mapUI() {
   // banner's own click handler — needs to be able to resync this banner's
   // visibility immediately in both directions.
   ui._syncAfters = checkLateNight;
+  // The strip claims to be "live now," ranked by heat, with a dot for a live
+  // story — all three of those are mutable and were never re-derived after
+  // boot, so it froze the moment heat changed (e.g. rating a night) while
+  // the pins right below it visibly updated.
+  ui._refreshStrip = fillStrip;
   mapUIInstance = ui;
 
   return ui;
@@ -560,6 +565,7 @@ function sendRequest(v, t, size) {
   if (r && r.ok === false) {
     if (r.reason === 'request_cap') Pet.speak('You have a few requests still out. Go Disco for unlimited, or wait on one to resolve.', 4600);
     else if (r.reason === 'duplicate') Pet.speak('Already sent — check Plans, no need to ask twice.', 3800);
+    else if (r.reason === 'own_listing') Pet.speak('This is your own table — nothing to request.', 3800);
     return;
   }
 }
@@ -693,8 +699,19 @@ function storyComposer(v) {
     preview, swatches,
     h('div', { style: { height: '18px' } }),
     h('button', { class: 'btn', text: 'Post', onclick: () => {
+      // Re-check at click time, not just at open time — this sheet can sit
+      // open long enough for CHECKIN_MS to lapse, and postStory() itself
+      // would otherwise silently degrade to a venue-less, permanently
+      // unreachable story (or a true no-op in demo mode) while this button
+      // still reported success.
+      const me = Engine.getActivePersonaId();
+      if (!Engine.activeCheckin(me)) {
+        closeSheet();
+        Pet.speak('That check-in expired while this was open — tap "I’m going" again to post from here.', 4800);
+        return;
+      }
       closeSheet(); buzz(10);
-      Engine.postStory(Engine.getActivePersonaId(), { colorIdx: idx });
+      Engine.postStory(me, { colorIdx: idx });
       drawMarks();
       toast('Posted — live on the map now');
     } }),
@@ -702,18 +719,34 @@ function storyComposer(v) {
 }
 
 /* ---- Toast -------------------------------------------------------------- */
+// Fast-swiping Browse can fire several toasts within a couple seconds —
+// without a stack they'd all render at the same fixed position and overlap
+// into unreadable garble. Newest sits at the base position; older ones get
+// pushed up.
+const activeToasts = [];
+function repositionToasts() {
+  const n = activeToasts.length;
+  activeToasts.forEach((t, i) => { t.style.bottom = (86 + (n - 1 - i) * 50) + 'px'; });
+}
 function toast(msg) {
   const t = h('div', { style: {
     position: 'absolute', left: '50%', bottom: '86px', transform: 'translate(-50%, 12px)',
     zIndex: '78', padding: '12px 18px', borderRadius: '999px', maxWidth: '86%',
     background: 'rgba(12,19,26,.96)', boxShadow: '0 0 0 1px rgba(18,224,138,.3), 0 16px 34px -12px rgba(0,0,0,.9)',
-    fontSize: '13.5px', fontWeight: '600', opacity: '0', transition: 'all .32s cubic-bezier(.22,1.2,.36,1)',
+    fontSize: '13.5px', fontWeight: '600', opacity: '0',
+    transition: 'opacity .32s cubic-bezier(.22,1.2,.36,1), transform .32s cubic-bezier(.22,1.2,.36,1), bottom .28s ease',
     textAlign: 'center',
   }, text: msg });
   $('#phone').appendChild(t);
+  activeToasts.push(t);
+  repositionToasts();
   requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translate(-50%,0)'; });
   setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translate(-50%,12px)';
-    setTimeout(() => t.remove(), 340); }, 2600);
+    setTimeout(() => {
+      t.remove();
+      const i = activeToasts.indexOf(t); if (i > -1) activeToasts.splice(i, 1);
+      repositionToasts();
+    }, 340); }, 2600);
 }
 
 /* ---- Browse: swipe anything (dopamine #3) ------------------------------- */
@@ -968,6 +1001,7 @@ function askAfter(a) {
   if (r && r.ok === false) {
     if (r.reason === 'request_cap') Pet.speak('You have a few requests still out. Go Disco for unlimited, or wait on one to resolve.', 4600);
     else if (r.reason === 'duplicate') Pet.speak('You already asked — sit tight for an answer.', 3800);
+    else if (r.reason === 'own_listing') Pet.speak('This is your own after-party — nothing to ask for.', 3800);
   }
 }
 
@@ -1074,7 +1108,7 @@ function buildPlans() {
     const threads = Engine.getThreadsForPersona(me);
     const saved = Engine.getSavedItems(me);
 
-    if (!pending.length && !declined.length && !passes.length && !saved.length) {
+    if (!pending.length && !declined.length && !passes.length && !saved.length && !threads.length) {
       body.appendChild(h('div', { class: 'pad center', style: { paddingTop: '70px', opacity: '.85' } }, [
         h('div', { style: { display: 'grid', placeItems: 'center', marginBottom: '14px', color: 'var(--fg-4)' } }, [
           h('span', { html: I.plans, style: { width: '42px', display: 'flex' } })]),
@@ -1109,10 +1143,10 @@ function buildPlans() {
     body.appendChild(h('div', { class: 'pad' }, [
       h('div', { class: 'lab', style: { marginBottom: '10px' }, text: 'Chats' }),
       threads.length
-        ? h('div', { class: 'card' }, threads.map(t => threadRow(t)))
+        ? h('div', { class: 'card' }, threads.slice().sort((a, b) => b.lastMessageAt - a.lastMessageAt).map(t => threadRow(t)))
         : h('p', { class: 'small', text: 'Nothing yet — a chat opens as soon as you request something.' }),
       h('div', { style: { height: '16px' } }),
-      passes.length ? h('button', { class: 'btn ghost', text: 'Rate last night', onclick: rateNight }) : null,
+      latestUnratedPass(me) ? h('button', { class: 'btn ghost', text: 'Rate last night', onclick: rateNight }) : null,
     ]));
   };
   return scr;
@@ -1125,7 +1159,10 @@ function threadRow(t) {
   const msgs = Engine.getMessages(t.id);
   const last = msgs[msgs.length - 1];
   const req = Engine.getRequest(t.requestId);
-  const sub = req && req.status === 'accepted' ? 'You’re in' : req && req.status === 'declined' ? 'Declined' : 'Waiting';
+  const sub = req && req.status === 'accepted' ? 'You’re in'
+    : req && req.status === 'declined' ? 'Declined'
+    : req && req.status === 'cancelled' ? 'Cancelled'
+    : 'Waiting';
   return h('div', { class: 'row', onclick: () => openThread(t) }, [
     h('div', { class: 'av', text: hostLabel(otherId)[0] }),
     h('div', { class: 'grow' }, [
@@ -1141,6 +1178,10 @@ function threadRow(t) {
 function openThread(t) {
   const me = Engine.getActivePersonaId();
   const otherId = t.participantIds.find(id => id !== me) || t.participantIds[0];
+  // Engine doesn't expose getThread(id) directly (by design — screens.js only
+  // ever gets threads via getThreadsForPersona), so re-derive the live thread
+  // the same way; `t` itself is a stale snapshot from whenever this was opened.
+  const currentThread = () => Engine.getThreadsForPersona(me).find(x => x.id === t.id) || t;
   const listEl = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', padding: '4px 0 16px' } });
   function paint() {
     listEl.innerHTML = '';
@@ -1153,23 +1194,36 @@ function openThread(t) {
       }, text: m.body }));
     });
   }
-  paint();
   const input = h('input', { placeholder: 'Message', style: { flex: '1', background: 'var(--surface)',
     border: 'none', borderRadius: '999px', padding: '11px 14px', color: 'var(--fg)', fontSize: '14px' } });
-  const send = () => {
+  const sendBtn = h('button', { class: 'btn sm', text: 'Send', style: { width: 'auto', padding: '0 16px' }, onclick: send });
+  const closedNote = h('p', { class: 'small', style: { marginTop: '8px', color: 'var(--fg-3)', display: 'none' },
+    text: 'This chat is closed — the request was declined or cancelled.' });
+  function send() {
+    if (input.disabled) return;
     const body = input.value.trim(); if (!body) return;
     Engine.sendMessage(t.id, me, body);
     input.value = ''; paint();
-  };
+  }
+  // A declined/cancelled request closes its thread (STORE.updateThread status
+  // 'closed') — that must actually stop the conversation here, not just be a
+  // status field nothing reads.
+  function syncComposer() {
+    const closed = currentThread().status !== 'open';
+    input.disabled = closed; sendBtn.disabled = closed;
+    input.style.opacity = sendBtn.style.opacity = closed ? '.45' : '1';
+    closedNote.style.display = closed ? 'block' : 'none';
+  }
+  paint(); syncComposer();
   input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
   openSheet(h('div', { class: 'pad', style: { display: 'flex', flexDirection: 'column', minHeight: '60vh' } }, [
     h('h2', { class: 'd2', text: hostLabel(otherId) }),
     listEl,
+    closedNote,
     h('div', { style: { display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '10px' } }, [
-      input,
-      h('button', { class: 'btn sm', text: 'Send', style: { width: 'auto', padding: '0 16px' }, onclick: send }),
+      input, sendBtn,
     ]),
-  ]), { tall: true });
+  ]), { tall: true, onChange: () => { paint(); syncComposer(); } });
 }
 
 /* ---- Business dashboard — surfaces inside Inbox when acting as a business.
@@ -1323,7 +1377,7 @@ function buildInbox() {
       ]));
       if (threads.length) body.appendChild(h('div', { class: 'pad' }, [
         h('div', { class: 'lab', style: { marginBottom: '9px' }, text: 'Chats' }),
-        h('div', { class: 'card' }, threads.map(t => threadRow(t))),
+        h('div', { class: 'card' }, threads.slice().sort((a, b) => b.lastMessageAt - a.lastMessageAt).map(t => threadRow(t))),
       ]));
       return;
     }
@@ -1599,33 +1653,40 @@ function buildMe() {
 }
 
 /* ---- Rate the night ----------------------------------------------------- */
+function latestUnratedPass(me) {
+  const passes = Engine.getPassesForGuest(me).slice().sort((a, b) => b.issuedAt - a.issuedAt);
+  return passes.length && !passes[0].rated ? passes[0] : null;
+}
 function rateNight() {
   const me = Engine.getActivePersonaId();
-  const passes = Engine.getPassesForGuest(me).slice().sort((a, b) => b.issuedAt - a.issuedAt);
-  const venue = passes.length ? byId(S.venues, passes[0].venueId) : null;
+  const pass = latestUnratedPass(me);
+  const venue = pass ? byId(S.venues, pass.venueId) : null;
   let val = 0;
   const stars = h('div', { style: { display: 'flex', gap: '10px', justifyContent: 'center', margin: '20px 0' } });
   for (let i = 1; i <= 5; i++) {
     const s = h('div', { style: { width: '40px', color: 'var(--fg-4)', cursor: 'pointer',
       transition: 'transform .18s cubic-bezier(.22,1.4,.36,1)' }, html: I.star,
-      onclick: () => { val = i; buzz(8);
+      onclick: () => { val = i; buzz(8); sendBtn.disabled = false; sendBtn.style.opacity = '1';
         Array.from(stars.children).forEach((c, k) => {
           c.style.color = k < i ? 'var(--em-hi)' : 'var(--fg-4)';
           c.style.transform = k < i ? 'scale(1.14)' : 'scale(1)';
         }); } });
     stars.appendChild(s);
   }
+  // Disabled until a star is actually tapped — val=0 must not be sendable as
+  // a rating (it used to silently count as a full negative rating).
+  const sendBtn = h('button', { class: 'btn', text: 'Send it', style: { opacity: '.45' }, disabled: true, onclick: () => {
+    if (!val) return;
+    const res = Engine.rateNight(me, val);
+    closeSheet(); buzz(10);
+    if (res && res.ok) { drawMarks(); toast('Thanks — the map just got a bit more honest'); }
+  } });
   openSheet(h('div', { class: 'pad center' }, [
     h('div', { class: 'lab', text: 'Last night' }),
     h('h2', { class: 'd2', style: { marginTop: '8px' }, text: (venue ? venue.name : 'Your night') + ' — was it worth it?' }),
     h('p', { class: 'small', style: { marginTop: '8px' }, text: 'Nobody reads this. It just makes the map more honest.' }),
     stars,
-    h('button', { class: 'btn', text: 'Send it', onclick: () => {
-      closeSheet(); buzz(10);
-      Engine.rateNight(me, val);
-      drawMarks();
-      toast('Thanks — the map just got a bit more honest');
-    } }),
+    sendBtn,
   ]));
 }
 
@@ -1862,6 +1923,13 @@ function bump(tab) {
   b.animate([{ transform: 'scale(.4)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' }],
     { duration: 420, easing: 'cubic-bezier(.22,1.4,.36,1)' });
 }
+// A badge that only ever grows tells the user nothing — clear it the moment
+// they actually visit the tab it's counting for.
+function clearBadge(tab) {
+  const t = $('#tab-' + tab); if (!t) return;
+  const b = t.querySelector('.badge');
+  if (b) b.remove();
+}
 
 /* ---- Mount -------------------------------------------------------------- */
 const screensList = {};
@@ -1889,7 +1957,7 @@ function mount(phone) {
     // Keep whichever tab-screen is currently visible honest about live
     // (possibly cross-tab) state, without forcing a reload — including the
     // map itself, e.g. a story expiring or heat changing while it's open.
-    if (st.screen === 'map') drawMarks();
+    if (st.screen === 'map') { drawMarks(); if (mapUIInstance) mapUIInstance._refreshStrip(); }
     else if (screensList[st.screen]) screensList[st.screen]._reset();
     // ...and whatever detail sheet is open on top of it (venue/spot/after) —
     // same staleness class, different code path (openSheet, not screensList).
@@ -1901,7 +1969,7 @@ function mount(phone) {
 const onShow = {
   browse: () => screensList.browse._reset(),
   plans: () => screensList.plans._reset(),
-  inbox: () => screensList.inbox._reset(),
+  inbox: () => { clearBadge('inbox'); screensList.inbox._reset(); },
   me: () => screensList.me._reset(),
 };
 

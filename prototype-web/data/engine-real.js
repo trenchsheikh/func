@@ -56,6 +56,11 @@ window.Engine = (function () {
     if (!canSendRequest(guestId)) return { ok: false, reason: 'request_cap' };
     if (alreadyPendingForSameTarget(guestId, params)) return { ok: false, reason: 'duplicate' };
     const hostId = resolveHostId(params);
+    // Same reasoning as visitSpot's own_spot guard: a business (or, via the QA
+    // switcher, an after-party host) has no business requesting/accepting
+    // their own listing — it would consume a real seat against nobody and
+    // let them accept their own pending request trivially.
+    if (hostId === guestId) return { ok: false, reason: 'own_listing' };
     const request = {
       id: STORE.uid('req'), kind: params.kind, guestId, partySize: params.partySize,
       venueId: params.venueId || null, tableId: params.tableId || null, afterId: params.afterId || null,
@@ -91,7 +96,7 @@ window.Engine = (function () {
       pass = STORE.addPass({
         id: STORE.uid('pass'), requestId: request.id, guestId: request.guestId, partySize: request.partySize,
         venueId: request.venueId, tableId: request.tableId, code: 'FNC-' + (4820 + STORE.listPasses().length),
-        issuedAt: STORE.now(), status: 'active',
+        issuedAt: STORE.now(), status: 'active', rated: false,
       });
     }
     STORE.updateRequest(request.id, { status: 'accepted', respondedAt: STORE.now(), passId: pass ? pass.id : null });
@@ -182,11 +187,16 @@ window.Engine = (function () {
   // Generalises off the demo's hardcoded 'monarch': rates whichever venue the
   // persona most recently held a pass at. No-ops if they never held one.
   function rateNight(personaId, stars) {
+    if (!stars) return { ok: false, reason: 'no_rating' };
     const passes = STORE.listPasses().filter((p) => p.guestId === personaId).sort((a, b) => b.issuedAt - a.issuedAt);
-    if (!passes.length) return;
-    const venue = STORE.getVenue(passes[0].venueId);
-    if (!venue) return;
+    if (!passes.length) return { ok: false, reason: 'no_pass' };
+    const latest = passes[0];
+    if (latest.rated) return { ok: false, reason: 'already_rated' };
+    const venue = STORE.getVenue(latest.venueId);
+    if (!venue) return { ok: false, reason: 'no_pass' };
     STORE.setVenueHeat(venue.id, Math.max(0.1, Math.min(1, venue.heat + (stars >= 4 ? 0.05 : -0.14))));
+    STORE.markPassRated(latest.id);
+    return { ok: true };
   }
 
   // Diff-based reconciliation: fires 'request:accepted' / 'request:declined'

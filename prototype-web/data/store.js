@@ -18,6 +18,20 @@ window.STORE = (function () {
   const NIGHT_MS = 8 * 60 * 60 * 1000; // how long a non-red status holds before it quietly expires
 
   const S = window.SEED;
+  // Snapshotted here, before applyOverlay ever runs — applyOverlay only ever
+  // PUSHES runtime-created accounts/tables/spots/stories into S.* and never
+  // removes them, and heat is mutated in place by rateNight. Without this,
+  // resetDemoData() clears root/localStorage but leaves every S.* array (and
+  // every venue's heat) exactly as the QA session left them.
+  const SEED_SNAPSHOT = {
+    people: S.people.map((p) => ({ ...p })),
+    businesses: (S.businesses || []).map((b) => ({ ...b, venueIds: [...b.venueIds] })),
+    tables: S.tables.map((t) => ({ ...t })),
+    spots: S.spots.map((sp) => ({ ...sp })),
+    stories: S.stories.map((st) => ({ ...st })),
+    venueHeat: {},
+  };
+  S.venues.forEach((v) => { SEED_SNAPSHOT.venueHeat[v.id] = v.heat; });
   const now = () => Date.now();
   const uid = (prefix) => prefix + '_' + Math.random().toString(36).slice(2, 9);
   const byIdLocal = (arr, id) => (arr || []).find((o) => o.id === id);
@@ -164,6 +178,13 @@ window.STORE = (function () {
       try {
         const parsed = JSON.parse(e.newValue);
         if (parsed && parsed.version === VERSION) { root = parsed; applyOverlay(); }
+        // A mismatch means this tab and the one that just wrote are running
+        // different deploys (only possible mid-iteration, not in one running
+        // session) — the update is silently dropped, and this tab's next
+        // local write will overwrite the other tab's data with its own
+        // stale-schema root. Not auto-recoverable without a real migration
+        // path; at minimum, don't fail silently.
+        else if (parsed) console.warn('func:v1 storage sync skipped — version mismatch (mine ' + VERSION + ', incoming ' + parsed.version + '). This tab and another tab are running different code; reload both.');
       } catch (err) {}
       applyingRemote = false;
       emit('change', {});
@@ -171,6 +192,15 @@ window.STORE = (function () {
   }
 
   function resetDemoData() {
+    // Restore S.* to the pristine snapshot FIRST — freshRoot() below derives
+    // peopleStatus from S.people's current .status, so this must happen
+    // before freshRoot() runs, not after.
+    S.people.length = 0; SEED_SNAPSHOT.people.forEach((p) => S.people.push({ ...p }));
+    S.businesses.length = 0; SEED_SNAPSHOT.businesses.forEach((b) => S.businesses.push({ ...b, venueIds: [...b.venueIds] }));
+    S.tables.length = 0; SEED_SNAPSHOT.tables.forEach((t) => S.tables.push({ ...t }));
+    S.spots.length = 0; SEED_SNAPSHOT.spots.forEach((sp) => S.spots.push({ ...sp }));
+    S.stories.length = 0; SEED_SNAPSHOT.stories.forEach((st) => S.stories.push({ ...st }));
+    S.venues.forEach((v) => { if (SEED_SNAPSHOT.venueHeat[v.id] != null) v.heat = SEED_SNAPSHOT.venueHeat[v.id]; });
     root = freshRoot();
     applyOverlay();
     persist();
@@ -237,6 +267,11 @@ window.STORE = (function () {
   // ---- passes ---------------------------------------------------------------
   function addPass(p) { root.passes.push(p); persist(); emit('change', {}); return p; }
   function listPasses() { return root.passes; }
+  function markPassRated(passId) {
+    const p = root.passes.find((x) => x.id === passId);
+    if (p) p.rated = true;
+    persist(); emit('change', {});
+  }
 
   // ---- threads + messages ----------------------------------------------------
   function addThread(t) { root.threads.push(t); persist(); emit('change', {}); return t; }
@@ -549,7 +584,7 @@ window.STORE = (function () {
     getPerson, getBusiness, getVenue, getTable, getAfter, listPeople, listBusinesses,
     setStatus, getStatus, setVenueHeat,
     addRequest, updateRequest, getRequest, listRequests,
-    addPass, listPasses,
+    addPass, listPasses, markPassRated,
     addThread, updateThread, getThread, getThreadForRequest, listThreads,
     addMessage, listMessagesForThread,
     createAccount, getAccount, getSessionPersonId, logout,

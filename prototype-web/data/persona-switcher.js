@@ -67,7 +67,7 @@ window.PersonaSwitcher = (function () {
         h('button', { class: 'btn ghost', text: 'Reset demo data', onclick: () => {
           STORE.resetDemoData(); Screens.closeSheet(); paintChip();
         } }),
-      ]), { tall: true });
+      ]), { tall: true, onChange: openSwitcher });
     }
   }
 

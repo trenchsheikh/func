@@ -55,6 +55,7 @@ window.Engine = (function () {
         const thread = seedThread(a.hostId, request.id, []);
         request.threadId = thread.id;
         const p = byId(S.people, 'you'); if (p) p.nights = (p.nights || 0) + 1;
+        emit('store:change', {});
         emit('request:accepted', { request, after: a });
       }, 3600);
     } else {
@@ -63,7 +64,7 @@ window.Engine = (function () {
       setTimeout(() => {
         request.status = 'accepted'; request.respondedAt = Date.now();
         const pass = { id: uid('pass'), requestId: request.id, guestId: 'you', partySize: params.partySize,
-          venueId: v.id, tableId: t.id, code: 'FNC-' + (4820 + _passes.length), issuedAt: Date.now(), status: 'active' };
+          venueId: v.id, tableId: t.id, code: 'FNC-' + (4820 + _passes.length), issuedAt: Date.now(), status: 'active', rated: false };
         _passes.push(pass);
         request.passId = pass.id;
         const thread = seedThread(t.businessId, request.id, [
@@ -72,6 +73,7 @@ window.Engine = (function () {
         ]);
         request.threadId = thread.id;
         const p = byId(S.people, 'you'); if (p) p.nights = (p.nights || 0) + 1;
+        emit('store:change', {});
         emit('request:accepted', { request, pass, venue: v, table: t });
       }, 4200);
     }
@@ -112,12 +114,17 @@ window.Engine = (function () {
   // ends up there today, but this stops being true the moment someone rates
   // after requesting a different table.
   function rateNight(personaId, stars) {
+    if (!stars) return { ok: false, reason: 'no_rating' };
     const mine = _passes.filter((p) => p.guestId === personaId).sort((a, b) => b.issuedAt - a.issuedAt);
-    if (!mine.length) return;
-    const v = byId(S.venues, mine[0].venueId);
-    if (!v) return;
+    if (!mine.length) return { ok: false, reason: 'no_pass' };
+    const latest = mine[0];
+    if (latest.rated) return { ok: false, reason: 'already_rated' };
+    const v = byId(S.venues, latest.venueId);
+    if (!v) return { ok: false, reason: 'no_pass' };
     v.heat = Math.max(0.1, Math.min(1, v.heat + (stars >= 4 ? 0.05 : -0.14)));
+    latest.rated = true;
     emit('store:change', {});
+    return { ok: true };
   }
 
   function reconcile() {} // no-op — demo mode has no cross-tab state to reconcile
@@ -239,7 +246,12 @@ window.Engine = (function () {
     if (!after) return 0;
     const accepted = _requests.filter((r) => r.afterId === after.id && r.status === 'accepted')
       .reduce((sum, r) => sum + (r.partySize || 1), 0);
-    return after.going + accepted;
+    // Demo mode's scripted "always accepts" is deliberate (there's no host to
+    // actually say no) — but the seeded afters start close to capacity, so an
+    // unclamped count could display more people going than the stated
+    // capacity (e.g. "13 of 12"). Clamp the display, don't reject the
+    // request: that would break the guaranteed-positive demo flow.
+    return Math.min(after.capacity, after.going + accepted);
   }
 
   return {
