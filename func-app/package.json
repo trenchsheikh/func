@@ -1,0 +1,20 @@
+{
+  "name": "func-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "func — TypeScript domain layer. React Native app shell follows in stage 3.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/domain/__tests__/*.test.ts",
+    "test:watch": "node --import tsx --test --watch src/domain/__tests__/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  }
+}
