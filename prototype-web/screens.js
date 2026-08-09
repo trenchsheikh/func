@@ -44,17 +44,32 @@ function paintStatusChips() {
     const label = c.querySelector('.statuslabel'); if (label) label.textContent = meta.label;
   });
 }
+// Same fix as paintStatusChips, for the other control duplicated between the
+// map top bar and the filter sheet: st.filters is one shared model, but the
+// top-bar Kind chips are built once in mapUI() and never told when the
+// filter sheet (or "Clear all") changes st.filters out from under them.
+function paintKindChips() {
+  $$('.kindchip').forEach((c) => c.classList.toggle('on', st.filters.has(c.dataset.kind)));
+}
 
 /* ---- Reusable sheet ----------------------------------------------------- */
-let scrim, sheet, sheetBody;
+let scrim, sheet, sheetBody, sheetRebuild = null, mapUIInstance = null;
+// opts.onChange: an open sheet is a one-shot render with no live subscription
+// of its own (unlike the tab screens' _reset() wiring below) — pass a
+// rebuild callback for any sheet whose content can go stale while it's open
+// (another persona accepting the last spot, a token count moving), and
+// mount()'s store:change handler will call it. Simplest correct fix given
+// this codebase's existing idiom is always "just rebuild via the same
+// builder function," never a diff/patch.
 function openSheet(node, opts) {
   sheetBody.innerHTML = '';
   sheetBody.appendChild(node);
   sheet.style.maxHeight = (opts && opts.tall) ? '92%' : '88%';
   scrim.classList.add('on'); sheet.classList.add('on');
+  sheetRebuild = (opts && opts.onChange) || null;
   buzz(8);
 }
-function closeSheet() { scrim.classList.remove('on'); sheet.classList.remove('on'); }
+function closeSheet() { scrim.classList.remove('on'); sheet.classList.remove('on'); sheetRebuild = null; }
 
 /* ---- Avatar helper ------------------------------------------------------ */
 const av = (p, cls) => h('div', { class: 'av ' + (cls || ''), 'data-s': p.status, text: p.initial });
@@ -66,9 +81,9 @@ function mapUI() {
   // ---- top bar
   const chips = h('div', { class: 'chiprow', style: { paddingBottom: '2px' } });
   KINDS.forEach(k => {
-    const c = h('div', { class: 'chip', text: k.label, onclick: () => {
+    const c = h('div', { class: 'chip kindchip', 'data-kind': k.id, text: k.label, onclick: () => {
       st.filters.has(k.id) ? st.filters.delete(k.id) : st.filters.add(k.id);
-      c.classList.toggle('on', st.filters.has(k.id));
+      paintKindChips();
       drawMarks(); buzz(5);
     }});
     chips.appendChild(c);
@@ -160,7 +175,7 @@ function mapUI() {
   }, [
     h('div', { class: 'chip', style: { height: '38px', padding: '0 16px', background: 'rgba(200,162,255,.16)',
         boxShadow: 'inset 0 0 0 1px rgba(200,162,255,.5)', color: '#E4D0FF', fontWeight: '700' },
-      onclick: () => { setAfters(true); aft.style.display = 'none'; } }),
+      onclick: () => setAfters(true) }),
   ]);
   ui.appendChild(aft);
   function checkLateNight() {
@@ -174,7 +189,12 @@ function mapUI() {
   }
   checkLateNight();
   setInterval(checkLateNight, 5 * 60 * 1000);
-  ui._showAfters = () => aft.style.display = 'block';
+  // setAfters() is the single source of truth for st.afters (both this
+  // banner and Profile's on/off button call it), so it — not just this
+  // banner's own click handler — needs to be able to resync this banner's
+  // visibility immediately in both directions.
+  ui._syncAfters = checkLateNight;
+  mapUIInstance = ui;
 
   return ui;
 }
@@ -228,7 +248,7 @@ const DIST_OPTS = [{ l: 'Walking', v: 0.5 }, { l: 'Under 2 mi', v: 2 }, { l: 'An
 function filterSheet() {
   function multiChip(label, on, toggle) {
     const c = h('div', { class: 'chip' + (on ? ' on' : ''), text: label, onclick: () => {
-      toggle(); c.classList.toggle('on'); drawMarks(); refreshBrowseIfOpen();
+      toggle(); c.classList.toggle('on'); paintKindChips(); drawMarks(); refreshBrowseIfOpen();
     } });
     return c;
   }
@@ -253,7 +273,7 @@ function filterSheet() {
       h('h2', { class: 'd2', text: 'Filter' }),
       h('div', { class: 'btn quiet sm', text: 'Clear all', style: { width: 'auto' }, onclick: () => {
         st.filters.clear(); st.filterVibe.clear(); st.filterCost = null; st.filterDistance = null; st.filterGreenOnly = false;
-        drawMarks(); refreshBrowseIfOpen(); filterSheet();
+        paintKindChips(); drawMarks(); refreshBrowseIfOpen(); filterSheet();
       } }),
     ]),
     h('p', { class: 'body', style: { margin: '6px 0 18px' }, text: 'All optional. Add as much or as little as you want.' }),
@@ -423,7 +443,7 @@ function venue(v) {
       ]),
     ]),
   ]);
-  openSheet(wrap, { tall: true });
+  openSheet(wrap, { tall: true, onChange: () => venue(v) });
 }
 
 function describeWho(pp) {
@@ -498,7 +518,7 @@ function spot(sp) {
       else if (res.alreadyCounted) Pet.speak('Already counted your visit here. Still a good pick.', 4000);
       else Pet.speak('Nice pick. ' + sp.by + ' just earned a token.', 4600);
     } }),
-  ]));
+  ]), { onChange: () => spot(sp) });
 }
 
 /* ---- Request → accepted → pass (dopamine #2) --------------------------- */
@@ -742,6 +762,17 @@ function buildBrowse() {
   ]));
 
   let items = [], top = null;
+  // Ids swiped (either direction) this Browse session. A right-swipe on a
+  // venue/spot/person calls Engine.saveItem/expressInterest synchronously,
+  // which fires 'store:change' synchronously, which — because Browse is
+  // still the active screen — runs straight back into this screen's own
+  // _reset() before the swipe's own shift()+render() finishes unwinding.
+  // Without this exclusion set, that _reset() rebuilds `items` from scratch
+  // and the card you just swiped (and the deck's whole progress) reappears
+  // in the same tick. decided persists across a _reset() (tab switch or a
+  // background change) so a card, once decided, stays gone until reload.
+  const decided = new Set();
+  function itemKey(it) { return it.kind + ':' + (it.t || it.a || it.sp || it.p || it.v).id; }
   function circleBtn(ic, col, fn) {
     return h('div', { style: { width: '62px', height: '62px', borderRadius: '50%', display: 'grid',
       placeItems: 'center', cursor: 'pointer', color: col, background: 'var(--surface)',
@@ -862,7 +893,11 @@ function buildBrowse() {
     buzz(dir > 0 ? 12 : 6);
     c.style.transform = `translate(${dir * 620}px, 90px) rotate(${dir * 26}deg)`;
     c.style.opacity = '0';
-    setTimeout(() => { items.shift(); render(); if (dir > 0) liked(it); }, 190);
+    setTimeout(() => {
+      decided.add(itemKey(it));
+      items.shift(); render();
+      if (dir > 0) liked(it);
+    }, 190);
   }
   function swipeTop(dir) { if (top && items.length) fling(top, items[0], dir); }
 
@@ -883,7 +918,7 @@ function buildBrowse() {
     }
   }
 
-  scr._reset = () => { items = browseItems(); render(); };
+  scr._reset = () => { items = browseItems().filter(it => !decided.has(itemKey(it))); render(); };
   return scr;
 }
 
@@ -921,10 +956,10 @@ function after(a) {
 
     revealed
       ? h('button', { class: 'btn', text: 'Open in maps', onclick: () => { closeSheet();
-          Pet.speak('Nine minutes. I will keep the address on your lock screen.', 4200); } })
+          Pet.speak(walkMinutes(a) + ' minutes. I will keep the address on your lock screen.', 4200); } })
       : h('button', { class: 'btn', text: 'Ask to come', onclick: () => askAfter(a) }),
   ]);
-  openSheet(wrap, { tall: true });
+  openSheet(wrap, { tall: true, onChange: () => after(a) });
 }
 
 function askAfter(a) {
@@ -950,7 +985,7 @@ function showAfterAcceptedOverlay(a) {
           h('div', { class: 'lab', style: { color: 'var(--em-hi)' }, text: 'Address' }),
           h('div', { style: { marginTop: '10px', fontSize: '17px', fontWeight: '700', lineHeight: '1.4' },
             text: a.address }),
-          h('div', { class: 'small', style: { marginTop: '12px' }, text: a.area + ' · 9 min from you' }),
+          h('div', { class: 'small', style: { marginTop: '12px' }, text: a.area + ' · ' + walkMinutes(a) + ' min from you' }),
         ]),
       ]),
       h('div', { style: { paddingTop: '18px' } }, [
@@ -968,6 +1003,7 @@ function setAfters(on) {
   st.afters = on;
   $('#phone').classList.toggle('afters', on);
   drawMarks(); buzz([10, 40, 16]);
+  if (mapUIInstance) mapUIInstance._syncAfters();
   if (on) {
     toast('Afters mode');
     Pet.speak('Everything still open is on the map. Three after-parties near you.', 5200);
@@ -997,9 +1033,12 @@ function buildPlans() {
         h('div', { style: { fontWeight: '650', fontSize: '14px' }, text: requestLabel(r) }),
         h('div', { class: 'small', text: 'Waiting on ' + hostLabel(r.hostId) }),
       ]),
-      h('button', { class: 'btn sm ghost', text: 'Cancel', onclick: () => {
+      // cancelRequest is a real, demo mode's is a deliberate no-op (the pitch
+      // script's auto-accept can't be interrupted) — same reason Log Out is
+      // gated to real mode elsewhere in this file, or this is a dead button.
+      Engine.mode === 'real' ? h('button', { class: 'btn sm ghost', text: 'Cancel', onclick: () => {
         Engine.cancelRequest(r.id, Engine.getActivePersonaId()); scr._reset();
-      } }),
+      } }) : null,
     ]);
   }
 
@@ -1183,12 +1222,15 @@ function businessDashboard(biz) {
   const seatsInput = h('input', Object.assign({ placeholder: 'Seats', type: 'number', min: '1' }, { style: inputStyle }));
   const perHeadInput = h('input', Object.assign({ placeholder: 'Per head ($)', type: 'number', min: '0' }, { style: inputStyle }));
   const vibeInput = h('input', Object.assign({ placeholder: 'Vibe (e.g. House · dress up)' }, { style: inputStyle }));
+  const seatsError = h('p', { class: 'small', style: { color: 'var(--red)', margin: '-2px 0 8px', display: 'none' },
+    text: 'Add a number of seats first.' });
 
   wrap.appendChild(h('div', { class: 'card', style: { padding: '14px', marginBottom: '16px' } }, [
     h('div', { class: 'lab', style: { marginBottom: '9px' }, text: 'Post a table' }),
-    venueSel, nameInput, seatsInput, perHeadInput, vibeInput,
+    venueSel, nameInput, seatsInput, seatsError, perHeadInput, vibeInput,
     h('button', { class: 'btn sm', text: 'Post', onclick: () => {
-      if (!seatsInput.value || +seatsInput.value < 1) return;
+      if (!seatsInput.value || +seatsInput.value < 1) { seatsError.style.display = 'block'; return; }
+      seatsError.style.display = 'none';
       Engine.postTable(biz.id, {
         venueId: venueSel.value, name: nameInput.value.trim() || 'Table',
         seats: +seatsInput.value, perHead: +perHeadInput.value || 0, vibe: vibeInput.value.trim(),
@@ -1255,13 +1297,15 @@ function buildInbox() {
     const me = Engine.getActivePersonaId();
 
     // Acting as a business or an after-party host: this is the accept/decline
-    // queue, not the guest inbox below. A business account can now BE the
-    // real logged-in identity (not just something reached via the QA persona
-    // switcher), so this can't just check "am I acting as someone other than
-    // home" — a business who *is* home must still land here, not in the
-    // guest inbox below.
+    // queue, not the guest inbox below. Routed on whether `me` genuinely
+    // hosts something — NOT on "am I acting as someone other than my home
+    // persona" (that was the same home-vs-active conflation already found
+    // and fixed once for Log Out: it meant any QA-switched-to persona saw
+    // the host queue even as an ordinary guest with a real accepted pass,
+    // because they weren't the device's logged-in identity).
     const actingBiz = byId(S.businesses, me);
-    if (actingBiz || me !== Engine.getHomePersonaId()) {
+    const isHost = actingBiz || S.afters.some(a => a.hostId === me);
+    if (isHost) {
       const biz = actingBiz;
       if (biz) body.appendChild(businessDashboard(biz));
 
@@ -1525,8 +1569,11 @@ function buildMe() {
 
       h('div', { style: { display: 'flex', gap: '10px', marginBottom: '18px' } }, [
         statCard('Nights out', String(me.nights || 0), '#fff'),
-        statCard('Spots dropped', String(me.spots || 0), '#fff'),
-        statCard('Tokens', String(me.tokens || 0), 'var(--gold)'),
+        // Derived from real S.spots, not me.spots/.tokens — those fields are
+        // written at drop/visit time but never reconciled against them, so
+        // they drift (visibly, for the default 'you' persona on first load).
+        statCard('Spots dropped', String(S.spots.filter(sp => sp.byId === meId).length), '#fff'),
+        statCard('Tokens', String(S.spots.filter(sp => sp.byId === meId).reduce((sum, sp) => sum + (sp.tokens || 0), 0)), 'var(--gold)'),
       ]),
 
       acc && acc.role === 'consumer' ? premiumCard(meId, acc) : null,
@@ -1838,11 +1885,15 @@ function mount(phone) {
   Engine.on('status:changed', paintStatusChips);
   Engine.on('store:change', () => {
     paintStatusChips();
+    paintKindChips();
     // Keep whichever tab-screen is currently visible honest about live
     // (possibly cross-tab) state, without forcing a reload — including the
     // map itself, e.g. a story expiring or heat changing while it's open.
     if (st.screen === 'map') drawMarks();
     else if (screensList[st.screen]) screensList[st.screen]._reset();
+    // ...and whatever detail sheet is open on top of it (venue/spot/after) —
+    // same staleness class, different code path (openSheet, not screensList).
+    if (sheetRebuild) sheetRebuild();
   });
   paintStatusChips();
 }
