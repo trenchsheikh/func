@@ -1,8 +1,9 @@
 # Func prototype-web — session handoff
 
-Written 2026-08-09 to continue this work in a fresh chat with no memory of the
-session that produced it. Read this first, then `README.md` in this same
-folder for the original file-by-file description.
+Written 2026-08-09, updated same day after a follow-on bug-hunt session, to
+continue this work in a fresh chat with no memory of the sessions that
+produced it. Read this first, then `README.md` in this same folder for the
+original file-by-file description.
 
 ## What this phase is
 
@@ -96,11 +97,19 @@ session (see log below). A business account **is** its own actor (id starts
 - **Request → accept → pass**: full loop, tested cross-persona (guest and
   host as two different logged-in identities via the persona switcher).
   Table/after-party capacity derived from real accepted requests (not
-  static seed numbers), decrements on accept, blocks over-capacity accepts,
-  blocks duplicate pending requests to the same target.
+  static seed numbers), decrements on accept **by the request's actual
+  partySize** (fixed this session — was counting accepted requests, not
+  people, so a party of 6 could take the last 2 real seats), blocks
+  over-capacity accepts, blocks duplicate pending requests to the same
+  target. "Nights out" on Profile now increments on every accepted request
+  (was frozen at signup).
 - **Local spots**: drop a spot (anchored to `YOU`'s fixed location — no real
   GPS), real visit → token loop (guarded against self-visits and double-
-  counting), spots/tokens stats update on the profile.
+  counting). Profile's Spots dropped/Tokens stats are now **derived from
+  real S.spots data** (fixed this session — used to read a static field
+  written once at drop/visit time that drifted from the spot's own token
+  count; Maya's Profile showed 0 tokens while her spot's own detail sheet
+  said 128).
 - **Saved items**: Browse swipe-right on a venue/spot persists to a real
   list, surfaced in Plans, removable.
 - **Real photo upload**: FileReader → canvas-downscaled JPEG data URL, no
@@ -139,6 +148,25 @@ session (see log below). A business account **is** its own actor (id starts
    logout-scope bug (caught via testing — QA-switching personas could
    silently sign out a different, still-logged-in account)
 6. `d386c69` — Empty state for business dashboard's venue-claim list
+7. `328dcce` — Add this handoff doc
+8. `d2bff5b` — **Bug-hunt session**: fix capacity math (accept-time gate
+   compared spots-left to zero, never to the request's own partySize — a
+   party of 6 could be accepted into a table with 2 real seats), fix the
+   18+ verification fail-open gap (unparseable dob resolved to "verified"
+   instead of "rejected"), add real "Nights out" tracking (was written once
+   at signup, never incremented), fix Profile/PetBrain's token count
+   reading a static field that drifted from the real per-spot data
+9. `fb121f9` — **Same session**: fix Browse's swipe deck self-wiping on
+   every right-swipe (a synchronous store:change cascade rebuilt the deck
+   mid-swipe), map top-bar Kind chips not repainting from the filter sheet,
+   the late-night Afters banner not syncing with Profile's toggle, venue/
+   spot/after detail sheets going stale while open (no store:change
+   subscription — sheets now take an `onChange` rebuild hook), Inbox
+   routing on "not my home persona" instead of "actually hosts something"
+   (same home-vs-active conflation class as the Log Out bug, bit a
+   QA-switched-to guest persona this time), a hardcoded "Nine minutes" for
+   every after-party regardless of which one, demo mode's Cancel button
+   being a dead no-op, and Post-a-table silently no-opping on invalid seats
 
 All on `main`, nothing pushed (**no git remote configured** — per
 `standing-orders.md`, GitHub push is prepped but blocked on Phoenix running
@@ -147,6 +175,28 @@ untracked changes in the repo (`CLAUDE.md`, `docs/`, most of `team/`,
 `inbox/`) predate this session and belong to a different work stream
 (the Decision 012–014 docs restructuring) — **not mine, don't commit them
 as part of continuing this work** unless separately asked.
+
+**Method for commits 8–9**: a 9-agent parallel code-audit (one per feature
+area, plus one for cross-cutting architecture invariants) surfaced 20
+candidate "looks wired but isn't" suspects. Every high-confidence one was
+live-verified in-browser (or via direct Engine/STORE calls exercising the
+same code path the UI uses) before fixing, and every fix was re-verified
+live afterward, not just read — per standing instruction, this is
+non-negotiable. Full candidate list + verification detail is in this
+session's transcript, not reproduced here. Not fixed (deliberately, judgment
+calls — revisit if this keeps mattering): Kind/search filters in Browse
+don't narrow after-parties/spots/people (product-scope ambiguity, may be
+intentional); story freshness ring doesn't live-fade each tick (fixable in
+one line but forces a full redraw of whatever screen/sheet is open every
+60s — real UX cost for a cosmetic bug, wanted your call before accepting
+that trade); age display on Profile frozen at signup (low impact, nobody's
+prototype account lives past a birthday); Globe overlay's SF "out" count
+doesn't live-update while open (same root cause as the sheet-staleness fix,
+different code path — narrow cross-tab-only repro, lowest priority of the
+bunch). Also noticed in passing, not fixed: demo mode's Plans screen shows
+"Waiting on undefined" for pending requests (engine-demo's sendRequest never
+sets a `hostId` on the request object) — pre-existing, unrelated to this
+session's fixes, flagging for whenever demo mode gets touched again.
 
 ## Honest gaps — Missing / Deferred / Ambiguous
 
@@ -226,6 +276,29 @@ not because they need revisiting):**
    `resize_window({width:450, height:950})`** (or similar, width < 760) to
    get the simpler full-bleed mobile layout instead, where on-screen
    coordinates match what you'd expect.
+6. **The embedded browser's cache can serve a stale top-level HTML document
+   itself**, not just stale sub-resources — `navigate()` to the exact same
+   URL (even with `force: true`) can keep rendering an old `<script src>`
+   list from before an edit to `index.html`/`interactive.html`. The fix
+   from gotcha #1 (cache-busting the script tags) only works if the HTML
+   document containing those tags is actually fresh. If
+   `Array.from(document.scripts).map(s=>s.src)` doesn't show your edits
+   after a `force: true` navigate, add a throwaway query string to the
+   **navigation URL itself** too (e.g. `index.html?nocache=1`) — that
+   reliably forces a fresh document fetch.
+7. The `computer` tool's `left_click` can hang (~30s timeout, "Browser pane
+   is currently hidden") on perfectly ordinary buttons, not just SVG map
+   markers (gotcha #2) — seemingly any element inside this app's
+   pointer-capture-heavy DOM. Default to driving the UI via
+   `javascript_tool` + `element.click()` / `dispatchEvent(new
+   MouseEvent('click', {bubbles:true}))` for *all* interaction in this app,
+   not just map markers — it's faster and doesn't hang. Reserve `computer`
+   for actual visual verification (screenshots).
+8. `javascript_tool` evaluates each call in a shared top-level scope on the
+   page — a `const`/`let` declared in one call collides ("Identifier ...
+   has already been declared") if reused in a later call on the same page
+   load. Wrap each script in `(function() { ... })();` to avoid this
+   entirely rather than tracking variable names across calls.
 
 ## How to run it
 
@@ -242,16 +315,25 @@ serving the same files — check before starting a second one.
 
 In roughly descending value, none of these blocking — pick based on what's
 actually asked for next:
-1. Another pass looking for "looks real but isn't" spots, same method that
-   found the six bugs this session: actually drive the app end-to-end,
-   don't just read the code.
-2. Local-spots economy depth (tokens currently only ever go up by 1 per
+1. Another pass looking for "looks real but isn't" spots — two sessions of
+   this method have now found 12 real bugs total (6 + 6). Diminishing
+   returns aren't obvious yet; still worth a third pass before assuming the
+   well is dry. Same method: fan out a code audit for candidates, then
+   actually drive the app end-to-end to confirm each one before fixing —
+   don't fix off a code read alone.
+2. The deliberately-deferred findings from this session's audit (listed in
+   the work log above) — Kind/search filters not narrowing afters/spots/
+   people in Browse, story freshness ring not live-fading, Globe's SF count
+   going stale while open. None are blocking; the story-ring one in
+   particular needs a product call (the cheap fix has a real redraw-cost
+   trade) before touching it.
+3. Local-spots economy depth (tokens currently only ever go up by 1 per
    visit — no spending/redemption exists anywhere, which may be fine or may
    be a gap depending on what Phoenix actually wants tokens to do).
-3. If Phoenix wants LA live in the prototype (not just acknowledged
+4. If Phoenix wants LA live in the prototype (not just acknowledged
    honestly on the globe), that's a real data-acquisition task via
    `build_map.py`'s Overpass pipeline — scope it with him first, it's not
    a small addition.
-4. Re-read `docs/DECISION_LOG.md` for anything logged after 2026-08-07 that
+5. Re-read `docs/DECISION_LOG.md` for anything logged after 2026-08-07 that
    might supersede assumptions here — this doc is a snapshot as of the
    session that wrote it.
