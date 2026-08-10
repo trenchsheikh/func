@@ -7,8 +7,12 @@
  * from being welded to a UI framework the way the prototype's were.
  */
 
+export * from './access';
+export * from './accounts';
 export * from './clock';
 export * from './geography';
 export * from './ids';
 export * from './presence';
+export * from './spots';
+export * from './stories';
 export * from './visibility';

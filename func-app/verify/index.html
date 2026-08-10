@@ -2,33 +2,53 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>func — presence &amp; visibility rule check</title>
+<title>func — domain rule check</title>
 <style>
-  body { font: 14px/1.5 ui-monospace, Menlo, monospace; background: #0b0f12; color: #d6e2e8; padding: 24px; }
-  h1 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: #8fa3ad; }
+  body { font: 14px/1.6 ui-monospace, Menlo, monospace; background: #0b0f12; color: #d6e2e8; padding: 24px 28px; }
+  h1 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #7d919b; font-weight: 600; }
+  h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #7d919b; margin: 26px 0 6px; font-weight: 600; }
   .pass { color: #46ffb4; } .fail { color: #ff6b7d; }
-  table { border-collapse: collapse; margin-top: 16px; }
-  td, th { padding: 3px 10px; text-align: left; border-bottom: 1px solid #1b2429; }
-  #summary { font-size: 18px; margin: 16px 0; }
+  .total { font-size: 22px; margin: 14px 0 4px; }
+  .note { color: #5f7078; font-size: 12.5px; max-width: 68ch; }
+  table { border-collapse: collapse; margin-top: 8px; width: 100%; }
+  td { padding: 3px 12px 3px 0; vertical-align: top; }
 </style>
 </head>
 <body>
-<h1>func — presence &amp; visibility rule check</h1>
-<div id="summary">running…</div>
+<h1>func — domain rule check</h1>
+<div class="total" id="total">running…</div>
+<p class="note">
+  Stopgap verification. Node is not installed on this machine, so the TypeScript
+  in <code>src/domain</code> cannot be compiled or unit tested yet. These files
+  transcribe the same pure logic into plain JavaScript so the rules can be
+  executed for real. Delete <code>verify/</code> once Node is installed and
+  <code>npm test</code> runs the TypeScript directly.
+</p>
 <div id="detail"></div>
+
 <script src="rules-check.js"></script>
+<script src="domain-check.js"></script>
 <script>
-  var r = window.__RULES_RESULT__;
-  document.getElementById('summary').innerHTML =
-    '<span class="' + (r.failed ? 'fail' : 'pass') + '">' +
-    r.passed + ' / ' + r.total + ' passed' +
-    (r.failed ? ' — ' + r.failed + ' FAILED' : '') + '</span>';
-  var rows = r.failures.map(function (f) {
-    return '<tr><td class="fail">FAIL</td><td>' + f.name +
-      '</td><td>got ' + JSON.stringify(f.actual) +
-      ', want ' + JSON.stringify(f.expected) + '</td></tr>';
-  }).join('');
-  document.getElementById('detail').innerHTML = rows ? '<table>' + rows + '</table>' : '';
+  var groups = [
+    { label: 'presence & visibility', r: window.__RULES_RESULT__ },
+    { label: 'access, accounts, spots & stories', r: window.__DOMAIN_RESULT__ }
+  ];
+  var total = 0, passed = 0, html = '';
+  groups.forEach(function (g) {
+    if (!g.r) { html += '<h2>' + g.label + '</h2><div class="fail">script failed to run</div>'; return; }
+    total += g.r.total; passed += g.r.passed;
+    html += '<h2>' + g.label + ' — <span class="' + (g.r.failed ? 'fail' : 'pass') + '">' +
+      g.r.passed + '/' + g.r.total + '</span></h2>';
+    if (g.r.failed) {
+      html += '<table>' + g.r.failures.map(function (f) {
+        return '<tr><td class="fail">FAIL</td><td>' + f.name +
+          '</td><td>got ' + JSON.stringify(f.actual) + ', want ' + JSON.stringify(f.expected) + '</td></tr>';
+      }).join('') + '</table>';
+    }
+  });
+  document.getElementById('total').innerHTML =
+    '<span class="' + (passed === total ? 'pass' : 'fail') + '">' + passed + ' / ' + total + ' passed</span>';
+  document.getElementById('detail').innerHTML = html;
 </script>
 </body>
 </html>

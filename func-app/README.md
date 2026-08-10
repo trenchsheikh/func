@@ -9,7 +9,7 @@ implementation.
 | Stage | What | State |
 |---|---|---|
 | 0 | Freeze and preserve the prototype | **Done** |
-| 1 | Domain layer in TypeScript | **In progress** — presence, visibility, geography, ids done |
+| 1 | Domain layer in TypeScript | **Substantially done** — presence, visibility, access, accounts, spots, stories, geography, ids |
 | 2 | Persistence + platform services behind interfaces | Not started |
 | 3 | React Native app shell + navigation | Not started |
 | 4 | Screens, in user-journey order | Not started |
@@ -47,9 +47,19 @@ src/domain/          Pure rules. Imports nothing outside this folder.
   geography.ts       World → Country → Region → City → District → Venue
   presence.ts        DTF, expiry, location fixes
   visibility.ts      Who may see whose location, and how precisely
+  access.ts          request → accept → pass, capacity, address reveal
+  accounts.ts        Signup, the 18+ gate, onboarding routing
+  spots.ts           Local spots and the token economy
+  stories.ts         Check-in geofence and the verified mark
   __tests__/         Real tests, runnable once Node exists
 verify/              Stopgap browser rule-check — delete once Node is installed
 ```
+
+### Still to do in stage 1
+
+Threads and messages, venue claiming and table posting, night rating → heat,
+saved items, and expressed interest. All small, all mechanical, none of them
+carrying new product decisions.
 
 ## The product model, in short
 
@@ -90,9 +100,11 @@ over the full truth table.
 cd func-app && python3 -m http.server 8779
 ```
 
-Then open <http://localhost:8779/verify/index.html>. Last run: **33/33 passed**,
-including all 16 rows of the mutuals matrix, DST-crossing expiry in three time
-zones, stale-fix withholding, and the venue rollup.
+Then open <http://localhost:8779/verify/index.html>. Last run: **94/94 passed** —
+all 16 rows of the mutuals matrix, DST-crossing expiry in three time zones,
+stale-fix withholding, the venue rollup, capacity by party size, the
+self-listing and authorisation guards, after-party address reveal, every
+fail-closed path in the 18+ gate, the token rules, and the check-in geofence.
 
 It is a stopgap, not a shipping artifact. Rules change in the TypeScript first;
 `verify/` is deleted the day Node arrives.
