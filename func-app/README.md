@@ -9,8 +9,8 @@ implementation.
 | Stage | What | State |
 |---|---|---|
 | 0 | Freeze and preserve the prototype | **Done** |
-| 1 | Domain layer in TypeScript | **Done** — 123 tests passing, typecheck clean |
-| 2 | Persistence + platform services behind interfaces | Not started |
+| 1 | Domain layer in TypeScript | **Done** — typecheck clean |
+| 2 | Persistence + platform services behind interfaces | **Done** — 187 tests passing overall |
 | 3 | React Native app shell + navigation | Not started |
 | 4 | Screens, in user-journey order | Not started |
 | 5 | Map (MapLibre) | Not started |
@@ -44,8 +44,20 @@ src/domain/          Pure rules. Imports nothing outside this folder.
   threads.ts         Per-request correspondence, deliberately not a chat app
   venues.ts          Claiming venues, posting tables
   engagement.ts      Night rating → heat, saved items, interest
-  __tests__/         123 tests
+src/data/            Persistence. Knows the domain; knows no platform.
+  schema.ts          The persisted document and its version
+  storage.ts         Key/value adapter — AsyncStorage, MMKV or a Map
+  store.ts           Load, migrate, mutate, persist, notify
+  graph.ts           SocialGraph over stored friendship edges
+  migrations/        The version chain, plus the web-prototype importer
+src/services/        Platform capabilities as interfaces, each with a fake
+  location.ts        Permission states, watch options, location fixes
+  notifications.ts   A closed union of the only things func may interrupt for
 ```
+
+Session is not a service — "who is signed in" is one field on the persisted
+document, and giving it its own abstraction would be indirection for its own
+sake.
 
 ## The product model, in short
 
@@ -78,7 +90,7 @@ that window your friends keep seeing you **without you touching the app again**.
 
 ## What the tests cover
 
-**123 tests, all passing.** The ones worth knowing about, because they encode
+**187 tests, all passing.** The ones worth knowing about, because they encode
 product rules rather than implementation details:
 
 - all 16 rows of the mutuals visibility matrix — exactly one grants anything
@@ -91,6 +103,11 @@ product rules rather than implementation details:
   contradicts what was typed at signup
 - tokens counted from the visit log, one per person per spot
 - the venue geofence behind a story's verified mark
+- a real prototype document importing field-by-field, including the mutuals
+  setting defaulting **off** — a migration must never grant a permission the
+  user was never asked for
+- unreadable or newer-than-this-build data being quarantined rather than
+  discarded, and write failures surfacing rather than being swallowed
 
 A previous browser-based stopgap (`verify/`) stood in while Node was missing.
 It has been deleted; its coverage is now in the TypeScript tests. Recoverable
