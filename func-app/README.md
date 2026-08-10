@@ -9,7 +9,7 @@ implementation.
 | Stage | What | State |
 |---|---|---|
 | 0 | Freeze and preserve the prototype | **Done** |
-| 1 | Domain layer in TypeScript | **Substantially done** — presence, visibility, access, accounts, spots, stories, geography, ids |
+| 1 | Domain layer in TypeScript | **Done** — 123 tests passing, typecheck clean |
 | 2 | Persistence + platform services behind interfaces | Not started |
 | 3 | React Native app shell + navigation | Not started |
 | 4 | Screens, in user-journey order | Not started |
@@ -20,23 +20,13 @@ implementation.
 lists every capability in the frozen prototype with an explicit destination, so
 nothing is dropped by accident.
 
-## ⚠️ Node is not installed on this machine
+## Running it
 
-This blocks stages 2–5 entirely and stops stage 1 being typechecked or unit
-tested. React Native, Expo, `tsc` and the test runner all need it.
-
-```bash
-curl -fsSL https://nodejs.org/dist/v22.11.0/node-v22.11.0.pkg -o ~/Downloads/node.pkg && open ~/Downloads/node.pkg
-```
-
-Then:
+Node 22.11 / npm 10.9.
 
 ```bash
-cd "$(git rev-parse --show-toplevel)/func-app" && npm install && npm test && npm run typecheck
+cd func-app && npm install && npm test && npm run typecheck
 ```
-
-Until that happens, the rules are verified by `verify/index.html` instead — see
-below.
 
 ## Layout
 
@@ -51,15 +41,11 @@ src/domain/          Pure rules. Imports nothing outside this folder.
   accounts.ts        Signup, the 18+ gate, onboarding routing
   spots.ts           Local spots and the token economy
   stories.ts         Check-in geofence and the verified mark
-  __tests__/         Real tests, runnable once Node exists
-verify/              Stopgap browser rule-check — delete once Node is installed
+  threads.ts         Per-request correspondence, deliberately not a chat app
+  venues.ts          Claiming venues, posting tables
+  engagement.ts      Night rating → heat, saved items, interest
+  __tests__/         123 tests
 ```
-
-### Still to do in stage 1
-
-Threads and messages, venue claiming and table posting, night rating → heat,
-saved items, and expressed interest. All small, all mechanical, none of them
-carrying new product decisions.
 
 ## The product model, in short
 
@@ -90,24 +76,25 @@ This keeps Tier 0 intact: presence stays opt-in, per night, self-expiring, and
 nobody is on the map without having turned DTF on. What changed is that within
 that window your friends keep seeing you **without you touching the app again**.
 
-## Verifying without Node
+## What the tests cover
 
-`verify/` runs the presence and visibility rules in a browser — a
-line-for-line transcription of the same logic into plain JavaScript, exercised
-over the full truth table.
+**123 tests, all passing.** The ones worth knowing about, because they encode
+product rules rather than implementation details:
 
-```bash
-cd func-app && python3 -m http.server 8779
-```
+- all 16 rows of the mutuals visibility matrix — exactly one grants anything
+- DTF expiry at local noon across three time zones and both DST transitions
+- stale and future-dated location fixes withheld rather than shown as current
+- capacity counted by party size, so a party of six consumes six seats
+- the self-listing and authorisation guards on every request transition
+- an after-party address revealed at exactly one moment and to exactly one person
+- every fail-closed branch of the 18+ gate, including a document that
+  contradicts what was typed at signup
+- tokens counted from the visit log, one per person per spot
+- the venue geofence behind a story's verified mark
 
-Then open <http://localhost:8779/verify/index.html>. Last run: **94/94 passed** —
-all 16 rows of the mutuals matrix, DST-crossing expiry in three time zones,
-stale-fix withholding, the venue rollup, capacity by party size, the
-self-listing and authorisation guards, after-party address reveal, every
-fail-closed path in the 18+ gate, the token rules, and the check-in geofence.
-
-It is a stopgap, not a shipping artifact. Rules change in the TypeScript first;
-`verify/` is deleted the day Node arrives.
+A previous browser-based stopgap (`verify/`) stood in while Node was missing.
+It has been deleted; its coverage is now in the TypeScript tests. Recoverable
+from commit `1329edf` if ever needed.
 
 ## Rules for working in here
 

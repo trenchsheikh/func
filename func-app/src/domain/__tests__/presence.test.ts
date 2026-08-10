@@ -113,8 +113,10 @@ describe('the user stays in control of the window', () => {
   it('can extend the window', () => {
     const clock = mutableClock(now, LA);
     const extended = withExpiry(goDtf(clock), now + 7_200_000, now);
+    // assert/strict's `equal` carries an assertion signature, so this narrows
+    // `extended` to the live variant for the line below.
     assert.equal(extended.kind, 'dtf');
-    assert.equal(extended.kind !== 'off' && extended.expiresAt, now + 7_200_000);
+    assert.equal(extended.expiresAt, now + 7_200_000);
   });
 
   it('switching off is immediate and unconditional', () => {

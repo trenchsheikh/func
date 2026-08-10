@@ -23,7 +23,7 @@
  */
 
 import type { Clock, Timestamp } from './clock';
-import type { Money, VenueId } from './geography';
+import type { Money } from './geography';
 import type {
   ActorId,
   AfterPartyId,
@@ -33,6 +33,7 @@ import type {
   RequestId,
   TableId,
   ThreadId,
+  VenueId,
 } from './ids';
 
 // ---------------------------------------------------------------------------
