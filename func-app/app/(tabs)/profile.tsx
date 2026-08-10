@@ -27,7 +27,7 @@ import {
   Spacer,
 } from '../../src/ui/components/kit';
 import { useApp } from '../../src/ui/state/AppProvider';
-import { dropSpot, postStory, removeFriend, resetDemoWorld } from '../../src/ui/state/actions';
+import { dropSpot, logout, postStory, removeFriend, resetDemoWorld } from '../../src/ui/state/actions';
 import {
   displayName,
   myCheckIn,
@@ -216,6 +216,13 @@ export default function ProfileScreen(): React.JSX.Element {
             resetDemoWorld(app);
             setFeedback('Reset to the demo world.');
           }}
+        />
+        <Spacer h={space.sm} />
+        <Button
+          label="Sign out"
+          variant="ghost"
+          testID="sign-out"
+          onPress={() => logout(app)}
         />
         <Spacer h={space.md} />
         <Small>func · 18+ · ID verified</Small>

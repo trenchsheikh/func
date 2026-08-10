@@ -10,7 +10,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { asVenueId, type TableOffer } from '../../src/domain';
+import { asSpotId, asVenueId, hasVisited, type TableOffer } from '../../src/domain';
 import {
   Body,
   Button,
@@ -29,21 +29,94 @@ import {
   Spacer,
 } from '../../src/ui/components/kit';
 import { useApp } from '../../src/ui/state/AppProvider';
-import { checkInAt, requestTable, toggleSaved, type ActionResult } from '../../src/ui/state/actions';
+import {
+  checkInAt,
+  requestTable,
+  toggleSaved,
+  visitSpot,
+  type ActionResult,
+} from '../../src/ui/state/actions';
 import { displayName, seatsLeft, venueSummary } from '../../src/ui/state/selectors';
 import { colour, space } from '../../src/ui/theme';
 
 const PARTY_SIZES = [1, 2, 3, 4, 5, 6];
 
+/**
+ * Local spots share this route (map.tsx pushes `/venue/spot-${id}`) rather
+ * than getting a screen of their own — there is only ever a name, a note and
+ * a "visit" action to show, not enough to justify a second file.
+ */
 export default function VenueScreen(): React.JSX.Element {
+  const params = useLocalSearchParams<{ id: string }>();
+  const rawId = params.id ?? '';
+  if (rawId.startsWith('spot-')) return <SpotScreen spotId={rawId.slice('spot-'.length)} />;
+  return <PlaceScreen venueId={rawId} />;
+}
+
+function SpotScreen({ spotId }: { spotId: string }): React.JSX.Element {
   const app = useApp();
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string }>();
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const spot = app.state.spots.find((s) => (s.id as string) === spotId);
+  if (!spot) return <Empty title="Not found" body="That spot is gone." />;
+
+  const me = app.meId;
+  const isOwn = me !== null && (spot.droppedBy as string) === (me as string);
+  const visited = me !== null && hasVisited(app.state.visits, me, asSpotId(spotId));
+
+  return (
+    <Screen>
+      <ScrollView contentContainerStyle={styles.pad}>
+        <Label>Local spot</Label>
+        <Spacer h={space.sm} />
+        <H1>{spot.name}</H1>
+        <Spacer h={space.sm} />
+        <Body>{spot.note || 'No note left.'}</Body>
+
+        <Spacer h={space.md} />
+        <Small>Dropped by {displayName(app.state, spot.droppedBy as string)}</Small>
+
+        <Spacer h={space.lg} />
+        <Card>
+          <Label>Tokens earned</Label>
+          <Spacer h={space.xs} />
+          <H2 tone="life">{spot.tokens}</H2>
+        </Card>
+
+        <Spacer h={space.lg} />
+        <Button
+          label={isOwn ? 'Your own spot' : visited ? 'Already visited' : 'Visit'}
+          disabled={isOwn || visited}
+          onPress={() => {
+            const result = visitSpot(app, asSpotId(spotId));
+            setFeedback(result.ok ? 'Counted — a token went to whoever dropped this.' : result.reason);
+          }}
+          testID="visit-spot"
+        />
+
+        {feedback ? (
+          <>
+            <Spacer h={space.md} />
+            <Notice text={feedback} tone={feedback.startsWith('Counted') ? 'life' : 'danger'} />
+          </>
+        ) : null}
+
+        <Spacer h={space.lg} />
+        <Button label="Back to the map" variant="ghost" onPress={() => router.back()} />
+      </ScrollView>
+    </Screen>
+  );
+}
+
+function PlaceScreen({ venueId }: { venueId: string }): React.JSX.Element {
+  const app = useApp();
+  const router = useRouter();
   const [requesting, setRequesting] = useState<TableOffer | null>(null);
   const [partySize, setPartySize] = useState(4);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const venue = app.places.venueByIdSync(asVenueId(params.id ?? ''));
+  const venue = app.places.venueByIdSync(asVenueId(venueId));
   if (!venue) return <Empty title="Not found" body="That place is not on the map." />;
 
   const summary = venueSummary(app, venue);

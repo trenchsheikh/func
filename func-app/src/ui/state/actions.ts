@@ -101,6 +101,23 @@ export function explain(error: AccessError | string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
+/**
+ * Sign out this device.
+ *
+ * Clears only the session pointer — never a captured id — so there is no
+ * closure to go stale and no way this can end up signing out an account
+ * other than whichever one is actually signed in when it runs.
+ */
+export function logout(app: AppContextValue): void {
+  app.update((state) => {
+    state.session.personId = null;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Presence
 // ---------------------------------------------------------------------------
 

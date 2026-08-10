@@ -18,7 +18,7 @@ import { InMemoryPlaceRepository } from '../../../data/places';
 import { FakeLocationService } from '../../../services/location';
 import { FakeNotificationService } from '../../../services/notifications';
 import type { AppContextValue } from '../AppProvider';
-import { acceptRequest, askAfterParty, cancelRequest, declineRequest } from '../actions';
+import { acceptRequest, askAfterParty, cancelRequest, declineRequest, logout } from '../actions';
 
 const NOW = Date.parse('2026-08-09T12:00:00Z');
 
@@ -169,5 +169,25 @@ describe('cancelRequest posts a system message as the thread closes', () => {
 
     assert.equal(result.ok, false);
     assert.equal(box.state.requests[0]?.status, 'pending');
+  });
+});
+
+describe('logout clears only the session pointer, never a captured id', () => {
+  it('signs out whoever is actually signed in, not a stale closure', () => {
+    const { box, contextFor } = testWorld();
+    box.state = { ...box.state, session: { personId: asPersonId(HOST) } };
+
+    logout(contextFor(HOST));
+
+    assert.equal(box.state.session.personId, null);
+  });
+
+  it('is a no-op shaped safely when nobody is signed in', () => {
+    const { box, contextFor } = testWorld();
+    assert.equal(box.state.session.personId, null);
+
+    logout(contextFor(null));
+
+    assert.equal(box.state.session.personId, null);
   });
 });

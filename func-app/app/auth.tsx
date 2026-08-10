@@ -39,6 +39,7 @@ import {
   Spacer,
 } from '../src/ui/components/kit';
 import { useApp } from '../src/ui/state/AppProvider';
+import { logout } from '../src/ui/state/actions';
 import { colour, radius, space } from '../src/ui/theme';
 
 export default function AuthScreen(): React.JSX.Element {
@@ -229,7 +230,7 @@ export default function AuthScreen(): React.JSX.Element {
             label="Sign out"
             variant="ghost"
             testID="blocked-signout"
-            onPress={() => app.update((state) => { state.session.personId = null; })}
+            onPress={() => logout(app)}
           />
         </View>
       </Screen>
