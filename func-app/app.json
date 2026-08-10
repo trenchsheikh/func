@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "func",
+    "slug": "func",
+    "scheme": "func",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.func.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "func shows your friends where you are while you're out — only while DTF is on, and only to people you've chosen.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "So your friends can still see where you are without you having to open func. Sharing stops by itself when DTF expires.",
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "android": {
+      "package": "com.func.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "func shows your friends where you are while you're out — only while DTF is on.",
+          "locationAlwaysAndWhenInUsePermission": "So your friends can still see where you are without you having to open func."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -53,3 +53,5 @@ export const asThreadId = (raw: string): ThreadId => raw as ThreadId;
 export const asMessageId = (raw: string): MessageId => raw as MessageId;
 export const asCityId = (raw: string): CityId => raw as CityId;
 export const asDistrictId = (raw: string): DistrictId => raw as DistrictId;
+export const asRegionId = (raw: string): RegionId => raw as RegionId;
+export const asCountryId = (raw: string): CountryId => raw as CountryId;

@@ -227,12 +227,14 @@ describe('the migration chain', () => {
   });
 
   it('migrates a stored document on load and saves the result', async () => {
-    const storage = new MemoryStorage({ [STORE_KEY]: documentAt(1, emptyState()) });
+    // A genuine v1 document — no `fixes` key at all.
+    const v1: Record<string, unknown> = { ...emptyState() };
+    delete v1['fixes'];
+    const storage = new MemoryStorage({ [STORE_KEY]: documentAt(1, v1) });
     const s = new FuncStore({ storage, now });
     const outcome = await s.load();
-    // At SCHEMA_VERSION 1 this is a plain load; the assertion is that a v1
-    // document is understood at all, which is what the chain guarantees.
-    assert.equal(outcome.kind, 'loaded');
+    assert.deepEqual(outcome, { kind: 'migrated', fromVersion: 1 });
+    assert.deepEqual(s.getState().fixes, {}, 'migration added the new field');
     const written = JSON.parse(storage.raw(STORE_KEY) ?? '{}') as PersistedDocument;
     assert.equal(written.schemaVersion, SCHEMA_VERSION);
   });

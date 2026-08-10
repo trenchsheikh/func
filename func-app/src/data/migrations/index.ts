@@ -20,12 +20,19 @@ export interface Migration {
 /**
  * Ordered, contiguous, oldest first.
  *
- * Empty at v1 — there is nothing before the first version. The legacy web
+ * The legacy web
  * prototype is not in this chain because it is a different store entirely
  * (a different key, a different shape); it is handled as an import, in
  * `legacy-prototype.ts`.
  */
-export const MIGRATIONS: readonly Migration[] = [];
+export const MIGRATIONS: readonly Migration[] = [
+  {
+    from: 1,
+    to: 2,
+    // v2 persists last-known location fixes. A v1 document simply has none.
+    migrate: (state) => ({ ...(state as object), fixes: {} }),
+  },
+];
 
 export class MigrationError extends Error {
   constructor(

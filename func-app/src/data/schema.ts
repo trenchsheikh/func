@@ -26,6 +26,7 @@ import type {
   Visit,
 } from '../domain';
 import type { AfterParty } from '../domain/access';
+import type { LocationFix } from '../domain/presence';
 import type { Business } from '../domain/venues';
 import type { Profile } from '../domain/accounts';
 import type { ActorId, PersonId, VenueId } from '../domain/ids';
@@ -34,7 +35,7 @@ import type { ActorId, PersonId, VenueId } from '../domain/ids';
  * Bump this whenever `PersistedState`'s shape changes, and add a migration in
  * the same commit. A version with no migration is a data-loss bug.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * Relationship edges.
@@ -79,6 +80,16 @@ export interface PersistedState {
   interest: Interest[];
 
   /**
+   * Last known position for each person this device may see.
+   *
+   * Added in v2. Fixes were originally held in React state only, which meant
+   * every friend — and the user's own dot — vanished on relaunch. In
+   * production these arrive from a server that has already applied the
+   * visibility rules; locally they are persisted so the app survives a reload.
+   */
+  fixes: Record<string, LocationFix>;
+
+  /**
    * Heat adjustments layered over whatever the venue source reports.
    *
    * Kept as an overlay rather than written into the venue itself: venues come
@@ -113,6 +124,7 @@ export function emptyState(): PersistedState {
     checkIns: [],
     saved: [],
     interest: [],
+    fixes: {},
     venueHeat: {},
   };
 }
