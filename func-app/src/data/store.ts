@@ -70,6 +70,23 @@ export class FuncStore {
    * a new user.
    */
   async load(): Promise<LoadOutcome> {
+    try {
+      return await this.loadInner();
+    } catch (error) {
+      // The read from storage itself failed — a corrupted native store, a
+      // transient device I/O error. There is no raw document to quarantine
+      // (we never got far enough to read one), but the app must still start
+      // rather than leave `loaded` false forever and every getState() call
+      // throwing "before load()" for the rest of the session.
+      this.state = emptyState();
+      const message = error instanceof Error ? error.message : String(error);
+      this.outcome = { kind: 'quarantined', reason: `could not read stored data — ${message}` };
+      this.loaded = true;
+      return this.outcome;
+    }
+  }
+
+  private async loadInner(): Promise<LoadOutcome> {
     const raw = await this.options.storage.getItem(STORE_KEY);
 
     if (raw === null) {
@@ -212,12 +229,18 @@ export class FuncStore {
     }
     const write = this.writeInFlight.then(async () => {
       const doc: PersistedDocument = { schemaVersion: SCHEMA_VERSION, state: this.state };
+      const before = this.lastWriteError;
       try {
         await this.options.storage.setItem(STORE_KEY, JSON.stringify(doc));
         this.lastWriteError = null;
       } catch (error) {
         this.lastWriteError = error instanceof Error ? error : new Error(String(error));
       }
+      // Tell subscribers when the write-error state actually changes — a
+      // failure to save must reach the UI, not just sit on a field nothing
+      // reads. flush() runs on its own timer, well after the mutate() that
+      // triggered it already notified, so this is a second, distinct signal.
+      if (before !== this.lastWriteError) this.notify();
     });
     this.writeInFlight = write;
     return write;

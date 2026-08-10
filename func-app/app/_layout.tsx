@@ -4,6 +4,7 @@ import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { WriteErrorBanner } from '../src/ui/components/WriteErrorBanner';
 import { AppProvider } from '../src/ui/state/AppProvider';
 import { colour } from '../src/ui/theme';
 
@@ -13,6 +14,7 @@ export default function RootLayout(): React.JSX.Element {
       <SafeAreaProvider>
         <AppProvider>
           <StatusBar style="light" />
+          <WriteErrorBanner />
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: colour.ink },

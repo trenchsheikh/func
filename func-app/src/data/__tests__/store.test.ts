@@ -6,13 +6,12 @@ import { MigrationError, migratableVersions, runMigrations, type Migration } fro
 import { LEGACY_KEY } from '../migrations/legacy-prototype';
 import { emptyState, SCHEMA_VERSION, type PersistedDocument } from '../schema';
 import { FuncStore, QUARANTINE_KEY, STORE_KEY } from '../store';
-import { FailingStorage, MemoryStorage } from '../storage';
+import { FailingStorage, MemoryStorage, UnreadableStorage, type StorageAdapter } from '../storage';
 
 const NOW = Date.parse('2026-08-09T04:00:00Z');
 const now = () => NOW;
 
-const store = (storage: MemoryStorage | FailingStorage) =>
-  new FuncStore({ storage, now });
+const store = (storage: StorageAdapter) => new FuncStore({ storage, now });
 
 const documentAt = (schemaVersion: number, state: unknown): string =>
   JSON.stringify({ schemaVersion, state });
@@ -131,6 +130,62 @@ describe('write failures surface', () => {
     await s.load();
     await s.flush();
     assert.equal(s.writeError(), null);
+  });
+
+  it('notifies subscribers when a write fails, not only when state changes', async () => {
+    // mutate() notifies synchronously, before the async flush() it schedules
+    // even runs — a subscriber watching only that first notification would
+    // never learn the write behind it actually failed. This is what makes
+    // writeError() reachable by something that reads it, rather than a field
+    // nobody ever gets told to check again.
+    const s = store(new FailingStorage('disk full'));
+    await s.load();
+
+    let sawWriteError: Error | null = null;
+    s.subscribe(() => { sawWriteError = s.writeError(); });
+
+    s.mutate((state) => { state.session.personId = asPersonId('u1'); });
+    await s.flush();
+
+    assert.match((sawWriteError as Error | null)?.message ?? '', /disk full/);
+  });
+});
+
+describe('a storage read that fails is quarantined, not thrown', () => {
+  it('starts fresh and reports why when the primary read rejects', async () => {
+    const s = store(new UnreadableStorage('device I/O error reading storage'));
+    const outcome = await s.load();
+
+    assert.equal(outcome.kind, 'quarantined');
+    assert.match(
+      outcome.kind === 'quarantined' ? outcome.reason : '',
+      /device I\/O error reading storage/,
+    );
+    // The app must still be usable, not stuck in "before load()" forever.
+    assert.deepEqual(s.getState().requests, []);
+  });
+
+  it('starts fresh when only the legacy-import read rejects on a fresh device', async () => {
+    // getItem(STORE_KEY) resolves null (a genuinely fresh device), but the
+    // follow-up getItem(LEGACY_KEY) inside tryLegacyImport rejects — a
+    // separate, previously-unguarded call site.
+    const storage: StorageAdapter = {
+      async getItem(key: string) {
+        if (key === LEGACY_KEY) throw new Error('legacy key read blew up');
+        return null;
+      },
+      async setItem() {},
+      async removeItem() {},
+    };
+    const s = store(storage);
+    const outcome = await s.load();
+
+    assert.equal(outcome.kind, 'quarantined');
+    assert.match(
+      outcome.kind === 'quarantined' ? outcome.reason : '',
+      /legacy key read blew up/,
+    );
+    assert.deepEqual(s.getState().requests, []);
   });
 });
 

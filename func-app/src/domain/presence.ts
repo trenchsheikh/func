@@ -20,7 +20,7 @@
  * nobody is on the map without having turned DTF on.
  */
 
-import type { Clock, Timestamp } from './clock';
+import { zonedParts, type Clock, type Timestamp, type ZonedParts } from './clock';
 import type { Coordinates } from './geography';
 
 // ---------------------------------------------------------------------------
@@ -105,43 +105,6 @@ export function nextLocalNoon(now: Timestamp, timeZone: string): Timestamp {
   }
 
   return zonedTimeToUtc({ year, month, day, hour: 12, minute: 0, second: 0 }, timeZone);
-}
-
-interface ZonedParts {
-  year: number;
-  month: number; // 1-12
-  day: number;
-  hour: number; // 0-23
-  minute: number;
-  second: number;
-}
-
-/** Wall-clock time in `timeZone` at instant `ts`. */
-function zonedParts(ts: Timestamp, timeZone: string): ZonedParts {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(new Date(ts));
-
-  const value = (type: string): number => {
-    const found = parts.find((p) => p.type === type);
-    return found ? Number(found.value) : 0;
-  };
-
-  return {
-    year: value('year'),
-    month: value('month'),
-    day: value('day'),
-    hour: value('hour') % 24, // some engines report 24 for midnight
-    minute: value('minute'),
-    second: value('second'),
-  };
 }
 
 /** UTC offset in ms for `timeZone` at instant `ts`. */

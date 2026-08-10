@@ -223,7 +223,20 @@ export function venuePresence(
     const seen = visibleLocation(viewer, entry.person, rel, now);
 
     if (seen.precision === 'exact') friends.push(entry.person.id);
-    else if (seen.precision === 'aggregate') mutuals += 1;
+    else if (
+      seen.precision === 'aggregate' &&
+      entry.person.fix &&
+      isFresh(entry.person.fix, now)
+    ) {
+      // visibleLocation() deliberately ignores fix freshness for mutuals —
+      // "are we allowed to know about each other at all tonight" does not
+      // depend on GPS data. But placing someone at *this specific venue*
+      // does: that is a claim about where they are right now, and a fix
+      // hours old is exactly the "shown as current when it is a lie" case
+      // isFresh exists to prevent. A mutual with no fix, or a stale one,
+      // contributes to anonymous heat instead — same as a friend would.
+      mutuals += 1;
+    }
   }
 
   return {

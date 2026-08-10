@@ -107,10 +107,16 @@ export interface PostStoryInput {
  * from when a composer was opened. A composer can sit open long enough for a
  * check-in to lapse, and the prototype shipped a bug where exactly that
  * produced a venue-less, unreachable story while the button reported success.
+ *
+ * The check-in must also actually belong to the poster. Today's only caller
+ * already filters to the poster's own check-ins before this is reached, but
+ * this function is the one place that decides the verified mark, so it must
+ * not trust a mismatched check-in handed to it by some future caller.
  */
 export function postStory(input: PostStoryInput, clock: Clock): Story {
   const now = clock.now();
-  const live = input.checkIn && input.checkIn.expiresAt > now ? input.checkIn : null;
+  const ownCheckIn = input.checkIn && input.checkIn.personId === input.by ? input.checkIn : null;
+  const live = ownCheckIn && ownCheckIn.expiresAt > now ? ownCheckIn : null;
   return {
     id: input.id,
     by: input.by,

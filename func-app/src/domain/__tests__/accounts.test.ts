@@ -33,29 +33,54 @@ const readable = (dob: string | null) => ({
 
 describe('age arithmetic uses the real calendar', () => {
   it('counts whole years', () => {
-    assert.equal(ageInYears('2000-08-09', NOW), 26);
-    assert.equal(ageInYears('2000-08-10', NOW), 25); // birthday not reached
+    assert.equal(ageInYears('2000-08-09', NOW, 'UTC'), 26);
+    assert.equal(ageInYears('2000-08-10', NOW, 'UTC'), 25); // birthday not reached
   });
 
   it('does not turn eighteen a day early', () => {
     // The 365.25-day divisor bug flipped this to 18 one day before the
     // birthday. On an 18+ gate that is a compliance failure.
-    assert.equal(meetsMinimumAge('2008-08-10', NOW), false);
-    assert.equal(meetsMinimumAge('2008-08-09', NOW), true);
+    assert.equal(meetsMinimumAge('2008-08-10', NOW, 'UTC'), false);
+    assert.equal(meetsMinimumAge('2008-08-09', NOW, 'UTC'), true);
   });
 
   it('is undeterminable rather than zero for bad input', () => {
-    assert.equal(ageInYears(null, NOW), null);
-    assert.equal(ageInYears('', NOW), null);
-    assert.equal(ageInYears('not a date', NOW), null);
-    assert.equal(ageInYears('2030-01-01', NOW), null); // born in the future
+    assert.equal(ageInYears(null, NOW, 'UTC'), null);
+    assert.equal(ageInYears('', NOW, 'UTC'), null);
+    assert.equal(ageInYears('not a date', NOW, 'UTC'), null);
+    assert.equal(ageInYears('2030-01-01', NOW, 'UTC'), null); // born in the future
+  });
+
+  it('uses the account holder\'s local day, not UTC\'s', () => {
+    // 2026-08-10T03:00:00Z is 2026-08-09 20:00 in Los Angeles — still the
+    // night before the birthday in the account holder's own city. UTC's
+    // calendar has already flipped to the 10th; local has not.
+    const stillTheNightBefore = Date.parse('2026-08-10T03:00:00Z');
+    assert.equal(
+      ageInYears('2008-08-10', stillTheNightBefore, 'America/Los_Angeles'),
+      17,
+    );
+    assert.equal(
+      meetsMinimumAge('2008-08-10', stillTheNightBefore, 'America/Los_Angeles'),
+      false,
+    );
+
+    // The same instant read on UTC's own calendar is already the 10th.
+    assert.equal(ageInYears('2008-08-10', stillTheNightBefore, 'UTC'), 18);
+
+    // Seven hours later the local calendar catches up.
+    const actualLocalBirthday = Date.parse('2026-08-10T10:00:00Z'); // 3am PDT
+    assert.equal(
+      ageInYears('2008-08-10', actualLocalBirthday, 'America/Los_Angeles'),
+      18,
+    );
   });
 });
 
 describe('the 18+ gate fails closed', () => {
   it('refuses every uncertain input', () => {
     for (const bad of [null, '', 'not a date', '2030-01-01']) {
-      assert.equal(meetsMinimumAge(bad, NOW), false, `should refuse ${JSON.stringify(bad)}`);
+      assert.equal(meetsMinimumAge(bad, NOW, 'UTC'), false, `should refuse ${JSON.stringify(bad)}`);
     }
   });
 
@@ -127,6 +152,22 @@ describe('rejection for age is terminal', () => {
     const account = rejectedFor('2012-01-01');
     assert.equal(mayRetryVerification(account), false);
     assert.equal(nextStep(account), 'blocked');
+  });
+
+  it('does not let submitVerification itself reset a terminal rejection to pending', () => {
+    // The domain function that mutates verification state must enforce the
+    // same terminal rule nextStep reads — otherwise the guard only holds as
+    // long as every caller happens to route through nextStep first.
+    const rejected = rejectedFor('2012-01-01');
+    const resubmitted = submitVerification(rejected, 'id_upload', clock);
+    assert.equal(resubmitted, rejected);
+    assert.equal(resubmitted.verification.status, 'rejected');
+    assert.equal(resubmitted.verification.rejectionReason, 'under_age');
+
+    // Even with adult evidence this time, resolving it does nothing — it
+    // never left 'rejected' to become 'pending' in the first place.
+    const stillBlocked = resolveVerification(resubmitted, readable('1995-01-01'), clock);
+    assert.equal(canEnter(stillBlocked), false);
   });
 
   it('does let a bad scan try again', () => {

@@ -24,6 +24,7 @@ import {
   saveItem as saveItemRule,
   sendMessage as sendMessageRule,
   sendRequest as sendRequestRule,
+  SYSTEM,
   threadForRequest,
   unsaveItem as unsaveItemRule,
   visitSpot as visitSpotRule,
@@ -247,7 +248,7 @@ export function acceptRequest(app: AppContextValue, request: AccessRequest): Act
   const result = acceptRequestRule(
     {
       request,
-      actingAs: request.hostId,
+      actingAs: me,
       target,
       allRequests: app.state.requests,
       newPassId: asPassId(uid('pass')),
@@ -301,7 +302,9 @@ export function declineRequest(
   request: AccessRequest,
   reason: string | null,
 ): ActionResult {
-  const result = declineRequestRule(request, request.hostId, reason, app.clock);
+  const me = app.meId;
+  if (!me) return { ok: false, reason: 'Sign in first.' };
+  const result = declineRequestRule(request, me, reason, app.clock);
   if (!result.ok) return { ok: false, reason: explain(result.error) };
 
   app.update((state) => {
@@ -309,7 +312,21 @@ export function declineRequest(
     if (index >= 0) state.requests[index] = result.value;
     const threadIndex = state.threads.findIndex((t) => t.id === request.threadId);
     const thread = state.threads[threadIndex];
-    if (thread) state.threads[threadIndex] = closeThread(thread);
+    if (thread) {
+      const closed = closeThread(thread);
+      const suffix = reason ? ` — ${reason}` : '';
+      const message = sendMessageRule(
+        {
+          id: asMessageId(uid('msg')),
+          thread: closed,
+          sender: SYSTEM,
+          body: `${nameFor(state, request.hostId as string)} declined${suffix}`,
+        },
+        app.clock,
+      );
+      state.threads[threadIndex] = message.ok ? message.value.thread : closed;
+      if (message.ok) state.messages.push(message.value.message);
+    }
   });
   return OK;
 }
@@ -325,7 +342,20 @@ export function cancelRequest(app: AppContextValue, request: AccessRequest): Act
     if (index >= 0) state.requests[index] = result.value;
     const threadIndex = state.threads.findIndex((t) => t.id === request.threadId);
     const thread = state.threads[threadIndex];
-    if (thread) state.threads[threadIndex] = closeThread(thread);
+    if (thread) {
+      const closed = closeThread(thread);
+      const message = sendMessageRule(
+        {
+          id: asMessageId(uid('msg')),
+          thread: closed,
+          sender: SYSTEM,
+          body: `${nameFor(state, request.guestId as string)} cancelled`,
+        },
+        app.clock,
+      );
+      state.threads[threadIndex] = message.ok ? message.value.thread : closed;
+      if (message.ok) state.messages.push(message.value.message);
+    }
   });
   return OK;
 }

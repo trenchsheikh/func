@@ -237,4 +237,28 @@ describe('venue rollup keeps friends named and mutuals anonymous', () => {
     const view = venuePresence(viewer, [at('f1', { dtf: true }), elsewhere], VENUE, graph, NOW);
     assert.deepEqual(view.friends, [asPersonId('f1')]);
   });
+
+  it('does not count a mutual toward "here now" on a stale or missing fix', () => {
+    // visibleLocation() itself is presence-only for mutuals (see "still
+    // aggregates a mutual with no location fix at all" above) — that answers
+    // "may we know about each other tonight", not "are they at this venue
+    // right now". Placing someone at a specific venue is a claim about the
+    // present moment, so it needs the same freshness discipline a friend's
+    // exact position gets.
+    const stale: LocationFix = { ...FIX, recordedAt: NOW - LOCATION_FRESHNESS_MS - 1 };
+    const view = venuePresence(
+      viewer,
+      [
+        at('m1', { dtf: true, mutuals: true, fix: stale }),
+        at('m2', { dtf: true, mutuals: true, fix: null }),
+        at('m3', { dtf: true, mutuals: true }), // fresh — the control
+        at('m4', { dtf: true, mutuals: true }), // fresh — clears the 2-minimum
+      ],
+      VENUE,
+      graph,
+      NOW,
+    );
+
+    assert.equal(view.mutualCount, 2, 'only the two fresh mutuals should count');
+  });
 });

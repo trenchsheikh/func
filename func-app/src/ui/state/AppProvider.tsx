@@ -58,6 +58,8 @@ export interface AppServices {
 export interface AppContextValue extends AppServices {
   readonly ready: boolean;
   readonly loadOutcome: LoadOutcome | null;
+  /** The most recent failure to persist a change, if any. Null once a write succeeds. */
+  readonly writeError: Error | null;
   readonly state: PersistedState;
   /** Who this device is acting as. Null before sign-in. */
   readonly meId: PersonId | null;
@@ -112,6 +114,7 @@ export function AppProvider({
   const [ready, setReady] = useState(false);
   const [outcome, setOutcome] = useState<LoadOutcome | null>(null);
   const [state, setState] = useState<PersistedState>(() => ({}) as PersistedState);
+  const [writeError, setWriteError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
     const store = storeRef.current!;
@@ -139,7 +142,12 @@ export function AppProvider({
     void load();
     const store = storeRef.current!;
     // Copy the reference so React re-renders; the store mutates in place.
-    return store.subscribe((next) => setState({ ...next }));
+    // A write failure is reported through the same subscription — flush()
+    // notifies on it too, so this is the one place both reach the screen.
+    return store.subscribe((next) => {
+      setState({ ...next });
+      setWriteError(store.writeError());
+    });
   }, [load]);
 
   const update = useCallback((fn: (s: PersistedState) => PersistedState | void) => {
@@ -165,6 +173,7 @@ export function AppProvider({
       ...services.current!,
       ready,
       loadOutcome: outcome,
+      writeError,
       state,
       meId,
       fixes,
@@ -173,7 +182,7 @@ export function AppProvider({
       setFix,
       reload: load,
     }),
-    [ready, outcome, state, meId, fixes, graph, update, setFix, load],
+    [ready, outcome, writeError, state, meId, fixes, graph, update, setFix, load],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

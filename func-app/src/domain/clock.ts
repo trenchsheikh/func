@@ -52,3 +52,48 @@ export function mutableClock(at: Timestamp, timeZone = 'UTC'): MutableClock {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Timezone-aware calendar math
+//
+// Shared by anything that needs "what day is it where the user actually is",
+// not UTC's day — DTF expiry (presence.ts) and the 18+ gate (accounts.ts)
+// both depend on this, and both need the same answer for the same instant.
+// ---------------------------------------------------------------------------
+
+export interface ZonedParts {
+  year: number;
+  month: number; // 1-12
+  day: number;
+  hour: number; // 0-23
+  minute: number;
+  second: number;
+}
+
+/** Wall-clock time in `timeZone` at instant `ts`. */
+export function zonedParts(ts: Timestamp, timeZone: string): ZonedParts {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(ts));
+
+  const value = (type: string): number => {
+    const found = parts.find((p) => p.type === type);
+    return found ? Number(found.value) : 0;
+  };
+
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+    hour: value('hour') % 24, // some engines report 24 for midnight
+    minute: value('minute'),
+    second: value('second'),
+  };
+}

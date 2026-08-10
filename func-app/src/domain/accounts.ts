@@ -10,7 +10,7 @@
  * make impossible.
  */
 
-import type { Clock, Timestamp } from './clock';
+import { zonedParts, type Clock, type Timestamp } from './clock';
 import type { ActorId, BusinessId, PersonId } from './ids';
 
 export const MINIMUM_AGE = 18;
@@ -68,21 +68,38 @@ export const UNVERIFIED: Verification = {
  * result a day early or late around their actual birthday — and "a day early" on
  * an 18+ gate is a compliance failure, not a rounding detail.
  *
+ * `timeZone` matters just as much as the arithmetic: "today" has to mean today
+ * where the account holder actually is, not UTC's calendar day. For every
+ * timezone west of UTC — including San Francisco, func's own target city — UTC
+ * flips to the birthday's date before the account holder's local calendar does,
+ * which would certify someone as 18 hours before they actually are.
+ *
  * Returns null rather than a number for anything it cannot determine. Callers
  * must treat null as "not an adult".
  */
-export function ageInYears(dateOfBirth: string | null, at: Timestamp): number | null {
+export function ageInYears(
+  dateOfBirth: string | null,
+  at: Timestamp,
+  timeZone: string,
+): number | null {
   if (!dateOfBirth) return null;
   const born = Date.parse(dateOfBirth);
   if (Number.isNaN(born)) return null;
   if (born > at) return null; // born in the future — nonsense input, not age 0
 
+  // The date of birth is a plain calendar date (no time-of-day, no zone of its
+  // own) — Date.parse of an ISO date-only string lands on UTC midnight, so
+  // reading its UTC fields back out recovers exactly the Y/M/D that was typed.
   const b = new Date(born);
-  const n = new Date(at);
-  let age = n.getUTCFullYear() - b.getUTCFullYear();
+  const bornYear = b.getUTCFullYear();
+  const bornMonth = b.getUTCMonth();
+  const bornDate = b.getUTCDate();
+
+  const today = zonedParts(at, timeZone);
+  let age = today.year - bornYear;
   const beforeBirthday =
-    n.getUTCMonth() < b.getUTCMonth() ||
-    (n.getUTCMonth() === b.getUTCMonth() && n.getUTCDate() < b.getUTCDate());
+    today.month - 1 < bornMonth ||
+    (today.month - 1 === bornMonth && today.day < bornDate);
   if (beforeBirthday) age -= 1;
 
   return age;
@@ -95,8 +112,12 @@ export function ageInYears(dateOfBirth: string | null, at: Timestamp): number | 
  * outcome — null, NaN, negative, undefined-by-way-of-bad-data — is a refusal by
  * construction rather than by omission.
  */
-export function meetsMinimumAge(dateOfBirth: string | null, at: Timestamp): boolean {
-  const age = ageInYears(dateOfBirth, at);
+export function meetsMinimumAge(
+  dateOfBirth: string | null,
+  at: Timestamp,
+  timeZone: string,
+): boolean {
+  const age = ageInYears(dateOfBirth, at, timeZone);
   return age !== null && age >= MINIMUM_AGE;
 }
 
@@ -133,11 +154,22 @@ export function createAccount(input: CreateAccountInput, clock: Clock): Account 
 // Verification
 // ---------------------------------------------------------------------------
 
+/**
+ * Rejection for age is terminal (see `mayRetryVerification`) — resubmitting
+ * must not be able to clear it. Every other status is free to move to
+ * 'pending': unverified starting fresh, or a non-age rejection retrying.
+ */
 export function submitVerification(
   account: Account,
   method: VerificationMethod,
   clock: Clock,
 ): Account {
+  if (
+    account.verification.status === 'rejected' &&
+    !mayRetryVerification(account)
+  ) {
+    return account;
+  }
   return {
     ...account,
     verification: {
@@ -177,6 +209,7 @@ export function resolveVerification(
   if (account.verification.status !== 'pending') return account;
 
   const now = clock.now();
+  const timeZone = clock.timeZone();
   const settle = (
     status: 'verified' | 'rejected',
     rejectionReason: RejectionReason | null,
@@ -190,10 +223,10 @@ export function resolveVerification(
   if (account.role === 'business') return settle('verified', null);
 
   const dob = evidence.documentDateOfBirth;
-  if (dob === null || ageInYears(dob, now) === null) {
+  if (dob === null || ageInYears(dob, now, timeZone) === null) {
     return settle('rejected', 'age_indeterminate');
   }
-  if (!meetsMinimumAge(dob, now)) return settle('rejected', 'under_age');
+  if (!meetsMinimumAge(dob, now, timeZone)) return settle('rejected', 'under_age');
 
   return settle('verified', null);
 }

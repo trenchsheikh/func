@@ -71,3 +71,23 @@ export class FailingStorage implements StorageAdapter {
     throw new Error(this.message);
   }
 }
+
+/**
+ * An adapter that fails every read.
+ *
+ * A corrupted native store or a transient device I/O error rejects getItem(),
+ * not just setItem() — a real failure mode `FailingStorage` above does not
+ * cover. Tests use this to prove the store starts fresh with a reported
+ * outcome instead of leaving `load()` rejecting.
+ */
+export class UnreadableStorage implements StorageAdapter {
+  constructor(private readonly message = 'device I/O error reading storage') {}
+
+  async getItem(): Promise<string | null> {
+    throw new Error(this.message);
+  }
+
+  async setItem(): Promise<void> {}
+
+  async removeItem(): Promise<void> {}
+}
