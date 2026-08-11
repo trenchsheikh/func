@@ -16,6 +16,7 @@ import {
   pendingForHost,
   requestsForGuest,
   resolvePresence,
+  savedFor,
   storiesAtVenue,
   tableSeatsLeft,
   venuePresence,
@@ -27,6 +28,7 @@ import {
   type PersonId,
   type Presence,
   type PresenceProfile,
+  type SavedKind,
   type Story,
   type TableOffer,
   type Venue,
@@ -264,4 +266,43 @@ export function myCheckIn(app: AppContextValue) {
 export function myStories(app: AppContextValue): readonly Story[] {
   if (!app.meId) return [];
   return liveStories(app.state.stories, app.clock.now()).filter((s) => s.by === app.meId);
+}
+
+export interface SavedView {
+  readonly kind: SavedKind;
+  readonly refId: string;
+  readonly name: string;
+  readonly sub: string;
+  /** Route target — dead if the venue/spot has since been removed. */
+  readonly href: `/venue/${string}` | null;
+}
+
+/**
+ * Saved venues and spots, newest first.
+ *
+ * The prototype's Plans screen had a "Saved" section; the migration dropped
+ * it, which left `saveItem`/`unsaveItem` writing data nothing ever read back.
+ */
+export function mySaved(app: AppContextValue): readonly SavedView[] {
+  if (!app.meId) return [];
+  return savedFor(app.state.saved, app.meId).map((item) => {
+    if (item.kind === 'venue') {
+      const venue = app.places.venueByIdSync(item.refId as VenueId);
+      return {
+        kind: item.kind,
+        refId: item.refId as string,
+        name: venue?.name ?? 'Somewhere',
+        sub: venue?.kind ?? 'place',
+        href: venue ? `/venue/${item.refId as string}` : null,
+      };
+    }
+    const spot = app.state.spots.find((s) => (s.id as string) === (item.refId as string));
+    return {
+      kind: item.kind,
+      refId: item.refId as string,
+      name: spot?.name ?? 'Somewhere',
+      sub: 'local spot',
+      href: spot ? `/venue/spot-${item.refId as string}` : null,
+    };
+  });
 }

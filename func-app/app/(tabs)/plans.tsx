@@ -27,8 +27,8 @@ import {
   Spacer,
 } from '../../src/ui/components/kit';
 import { useApp } from '../../src/ui/state/AppProvider';
-import { cancelRequest, rateNight } from '../../src/ui/state/actions';
-import { displayName, myPasses, myRequests, unratedPass } from '../../src/ui/state/selectors';
+import { cancelRequest, rateNight, toggleSaved } from '../../src/ui/state/actions';
+import { displayName, mySaved, myPasses, myRequests, unratedPass } from '../../src/ui/state/selectors';
 import { colour, radius, space } from '../../src/ui/theme';
 
 export default function PlansScreen(): React.JSX.Element {
@@ -40,6 +40,7 @@ export default function PlansScreen(): React.JSX.Element {
 
   const requests = myRequests(app);
   const passes = myPasses(app);
+  const saved = mySaved(app);
   const toRate = unratedPass(app);
 
   const pending = requests.filter((r) => r.status === 'pending');
@@ -142,7 +143,40 @@ export default function PlansScreen(): React.JSX.Element {
           </>
         )}
 
-        {passes.length === 0 && requests.length === 0 && (
+        {saved.length > 0 && (
+          <>
+            <Spacer h={space.xl} />
+            <Label>Saved</Label>
+            <Spacer h={space.sm} />
+            {saved.map((item) => {
+              const href = item.href;
+              return (
+              <Card key={`${item.kind}-${item.refId}`} style={styles.item}>
+                <Row>
+                  <View style={styles.flex}>
+                    <H2>{item.name}</H2>
+                    <Small>{item.sub}</Small>
+                  </View>
+                  {href && (
+                    <Button
+                      label="Open"
+                      variant="ghost"
+                      onPress={() => router.push(href)}
+                    />
+                  )}
+                  <Button
+                    label="Unsave"
+                    variant="ghost"
+                    onPress={() => toggleSaved(app, item.kind, item.refId as never)}
+                  />
+                </Row>
+              </Card>
+              );
+            })}
+          </>
+        )}
+
+        {passes.length === 0 && requests.length === 0 && saved.length === 0 && (
           <>
             <Spacer h={space.xxl} />
             <Empty title="Nothing yet" body="Being out is not a plan. This fills up when you commit to something." />
