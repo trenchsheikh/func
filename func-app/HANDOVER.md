@@ -393,3 +393,40 @@ by hand, or someone investigating the host side directly (the automation
 tool's own connection to the simulator, not the simulator's internal state,
 since guest-OS reboots provably don't touch whatever's wrong). Don't spend a
 third session re-running what's already in this list.
+
+### 2026-08-11, resolved — it was the injection tool, not the app or the simulator
+
+Phoenix authorized driving the Simulator app directly (computer-use, real
+mouse clicks on the actual window) to try the Shake Gesture idea above.
+Device → Shake reached the Expo dev menu fine (a native macOS menu command,
+not an on-screen touch, so this was never in question). Its own "Reload"
+button also worked on a real click. That was the tell: **on-screen taps
+delivered as genuine mouse clicks through the real Simulator.app window work
+correctly** — Map's Clubs chip responded immediately (highlighted, marker
+set filtered) the first time it was tried this way, no reboot, no reinstall,
+no dev-menu fiddling required.
+
+So the bug was never in func, React Navigation, RN's touch dispatch, or the
+simulator's own input handling — all of those work. It's specifically in
+**this dedicated iOS-Simulator MCP tool's synthetic tap-injection path**
+(the one that talks to the booted device directly via CoreSimulator/simctl
+APIs rather than through a real on-screen window). Something about how it
+injects touches stopped reaching the RN touch responder, and neither
+restarting the app, the simulator, nor the tool session touched whatever was
+actually wrong, because none of those are the layer that broke.
+
+**Practical fix, if this recurs:** don't fight the dedicated simulator tool.
+Open Simulator.app's real window (`open -a Simulator` after `simctl boot`;
+quit and relaunch Simulator.app if the dedicated tool's `attach` shows no
+actual on-screen window — it talks to the device directly and doesn't need
+one, which is exactly why this was hard to notice) and drive it with genuine
+mouse clicks (computer-use or by hand) instead of the tool's `tap` action.
+Screenshots from the dedicated tool are still fine for reading state; it's
+only the injected taps that were unreliable.
+
+One rough edge along the way, unrelated to the above: with no Simulator
+window open and no app focused, clicking on the bare desktop got refused by
+computer-use as landing on "Notification Centre" (desktop widgets sitting in
+that hit-test layer) — not a bug, just what an empty desktop with widgets
+resolves to. It went away as soon as Simulator.app actually had a window and
+was frontmost.
