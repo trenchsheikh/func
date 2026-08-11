@@ -3,17 +3,21 @@
  *
  * ## On the base layer
  *
- * Standing orders commit to MapLibre with a custom func style. MapLibre for
- * React Native is a native module: it needs a development build, not Expo Go.
- * Rather than block every other screen behind a native toolchain, the map is
- * split in two — this component owns *what func draws on a map* (heat, story
- * rings, friends, mutual counts, spots, after-parties), and the base layer
- * behind it is a swappable detail.
+ * Standing orders committed to MapLibre with a custom func style; this is that
+ * delivered. The base layer is OpenFreeMap's Liberty style — free, no API key,
+ * no billing account, global coverage, real 3D building extrusions at street
+ * zoom.
  *
- * What is here now is a vector-drawn base: a projection, a camera, and the
- * func layers on top. Swapping in MapLibre means replacing the backdrop and
- * feeding the camera from its region, not rewriting any of the layer logic
- * below — the projection is already Web Mercator, which is what tiles use.
+ * This component still owns *what func draws on a map* (heat, story rings,
+ * friends, mutual counts, spots, after-parties) — that never changed. What
+ * changed is who owns positioning and gesture handling: previously this file
+ * hand-rolled a Web Mercator projection and a PanResponder to fake panning
+ * over a flat grid, because there was no real map underneath. There is now.
+ * MapLibre owns the camera (pan, pinch-zoom, inertia — real map behaviour, not
+ * an approximation of it), and every func layer is a `Marker` — a real RN view
+ * pinned to a real coordinate, repositioned by MapLibre as the camera moves.
+ * The manual projection math and the centralised tap hit-testing this used to
+ * need are gone; MapLibre's own touch handling replaces both.
  *
  * ## On the layers
  *
@@ -23,17 +27,18 @@
  * mutual's location, because no mutual location is ever passed in.
  */
 
-import React, { useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
-import Svg, {
-  Circle,
-  Defs,
-  G,
-  RadialGradient,
-  Rect,
-  Stop,
-  Text as SvgText,
-} from 'react-native-svg';
+import {
+  Camera,
+  Map as MapLibreMap,
+  Marker,
+  type CameraRef,
+  type LngLat,
+  type ViewStateChangeEvent,
+} from '@maplibre/maplibre-react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import type { NativeSyntheticEvent } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Defs, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 
 import type { Coordinates, Venue, VenueId } from '../../domain';
 import type { VenuePresenceView } from '../../domain/visibility';
@@ -41,37 +46,38 @@ import { colour } from '../theme';
 import { Icon } from './Icon';
 
 // ---------------------------------------------------------------------------
-// Projection — Web Mercator, so the maths already matches a real tile source
+// Base layer
 // ---------------------------------------------------------------------------
 
-const mercX = (lon: number): number => (lon + 180) / 360;
-const mercY = (lat: number): number => {
-  const s = Math.sin((lat * Math.PI) / 180);
-  return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
-};
+/**
+ * OpenFreeMap's Liberty style. Free, keyless, no billing account.
+ *
+ * Of OpenFreeMap's five stock styles (liberty, dark, bright, positron,
+ * fiord), Liberty is the only one with a real `fill-extrusion` building
+ * layer — checked against each style's own JSON, not assumed. The PRD names
+ * "native 3D building extrusions" as the specific reason to use OpenFreeMap
+ * at all, so that wins over Dark's closer tonal match to func's chrome-on-
+ * black identity. This is still a stock style, not "a custom func style" —
+ * that is separate, not-yet-started work standing orders call out on its
+ * own; hand-tuning Liberty's colours here would blur the two together
+ * without the design input that work actually needs.
+ */
+const OPENFREEMAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
-export interface Camera {
-  /** Centre of the view. */
-  readonly centre: Coordinates;
-  /** World pixels across the viewport. Higher = closer in. */
-  readonly scale: number;
-}
+const toLngLat = (at: Coordinates): LngLat => [at.lon, at.lat];
 
 /**
- * Zoom limits, in world pixels across the whole globe.
+ * Zoom limits.
  *
- * These were an order of magnitude too small on the first run — every venue in
- * the city collapsed into one unreadable blob, which is not something reading
- * the code would have shown. A city's venue cluster spans roughly 0.06° of
- * longitude, so filling ~330pt of a phone screen needs about two million:
- * 330 ÷ (0.06 ÷ 360).
+ * These were an order of magnitude too small on the first (pre-MapLibre) run —
+ * every venue in the city collapsed into one unreadable blob. Carried forward
+ * in zoom-level terms: a city's nightlife wants roughly zoom 13, the whole bay
+ * bottoms out around 9.5, and individual buildings are legible by 18.
  */
-const MIN_SCALE = 200_000; // the whole bay
-const MAX_SCALE = 40_000_000; // individual buildings
-const DEFAULT_SCALE = 2_000_000; // a city's nightlife, legibly spread
-
-/** How close a tap has to land to count as hitting a marker, in points. */
-const TAP_RADIUS = 34;
+const MIN_ZOOM = 9.5; // the whole bay
+const MAX_ZOOM = 18; // individual buildings
+const DEFAULT_ZOOM = 13; // a city's nightlife, legibly spread
+const ZOOM_STEP = 1.4;
 
 // ---------------------------------------------------------------------------
 // Props
@@ -125,238 +131,98 @@ export function FuncMap({
   onSpotPress,
   onAfterPress,
 }: FuncMapProps): React.JSX.Element {
-  const [size, setSize] = useState({ width: 390, height: 700 });
-  const [camera, setCamera] = useState<Camera>({ centre: initialCentre, scale: DEFAULT_SCALE });
-  const cameraRef = useRef(camera);
-  cameraRef.current = camera;
+  const cameraRef = useRef<CameraRef>(null);
+  // Only used to clamp the +/- buttons — MapLibre owns the camera, this is a
+  // read-only mirror of it, never fed back in as a prop.
+  const [zoomLevel, setZoomLevel] = useState(DEFAULT_ZOOM);
 
-  const project = useMemo(() => {
-    const cx = mercX(camera.centre.lon) * camera.scale;
-    const cy = mercY(camera.centre.lat) * camera.scale;
-    return (at: Coordinates) => ({
-      x: mercX(at.lon) * camera.scale - cx + size.width / 2,
-      y: mercY(at.lat) * camera.scale - cy + size.height / 2,
-    });
-  }, [camera, size]);
+  // A stable array reference for the whole component's lifetime. `initialCentre`
+  // is genuinely initial — the camera must not snap back to it on some later,
+  // unrelated re-render (a friend's presence updating elsewhere, say). Keying
+  // the memo on the primitive lat/lon rather than the object reference means
+  // this stays stable even though the caller recomputes that object every render.
+  const initialLngLat = useMemo(
+    () => toLngLat(initialCentre),
+    [initialCentre.lat, initialCentre.lon],
+  );
 
-  /**
-   * Touch handling.
-   *
-   * Taps are hit-tested here against projected positions rather than through
-   * per-shape `onPress`. Two reasons, the first found on a simulator: a friend
-   * marker sits directly on top of the venue they are at and swallowed the tap,
-   * so Monarch was unopenable while an empty venue opened fine. The second is
-   * that a 10pt circle is a poor tap target on a phone — nearest-within-radius
-   * is far more forgiving, and it lets a label count as part of its marker.
-   */
-  const hitTargets = useRef<{ x: number; y: number; run: () => void; priority: number }[]>([]);
+  const onRegionDidChange = useCallback(
+    (event: NativeSyntheticEvent<ViewStateChangeEvent>) => {
+      setZoomLevel(event.nativeEvent.zoom);
+    },
+    [],
+  );
 
-  const pan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 3 || Math.abs(g.dy) > 3,
-      onPanResponderMove: (_e, g) => {
-        const current = cameraRef.current;
-        // Convert a pixel drag back into degrees at the current scale.
-        const dLon = (-g.dx / current.scale) * 360;
-        const worldY = mercY(current.centre.lat) - g.dy / current.scale;
-        const lat = mercYToLat(worldY);
-        setCamera({ centre: { lat, lon: current.centre.lon + dLon }, scale: current.scale });
-      },
-      onPanResponderRelease: (e, g) => {
-        // A drag is not a tap.
-        if (Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8) return;
-        const { locationX, locationY } = e.nativeEvent;
+  const zoomBy = (delta: number) => {
+    const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel + delta));
+    cameraRef.current?.zoomTo(next, { duration: 200 });
+  };
 
-        let best: { run: () => void; score: number } | null = null;
-        for (const target of hitTargets.current) {
-          const distance = Math.hypot(target.x - locationX, target.y - locationY);
-          if (distance > TAP_RADIUS) continue;
-          // Priority breaks ties so a small marker on top of a big heat pool
-          // still wins, rather than whichever happened to be nearer.
-          const score = distance - target.priority * 12;
-          if (!best || score < best.score) best = { run: target.run, score };
-        }
-        best?.run();
-      },
-    }),
-  ).current;
-
-  // Rebuilt every render, because the camera moves. Cheap: a projection per
-  // marker. Priority 2 beats priority 1 when both are within the tap radius.
-  hitTargets.current = [
-    ...afterParties.map((a) => ({ ...project(a.at), priority: 2, run: () => onAfterPress(a.id) })),
-    ...spots.map((s) => ({ ...project(s.at), priority: 2, run: () => onSpotPress(s.id) })),
-    ...venues.map((v) => ({ ...project(v.at), priority: 1, run: () => onVenuePress(v) })),
-  ];
-
-  const zoom = (factor: number) =>
-    setCamera((c) => ({
-      centre: c.centre,
-      scale: Math.max(MIN_SCALE, Math.min(MAX_SCALE, c.scale * factor)),
-    }));
-
-  const recentre = () => setCamera((c) => ({ centre: me ?? initialCentre, scale: c.scale }));
+  const recentre = () => {
+    cameraRef.current?.easeTo({ center: toLngLat(me ?? initialCentre), duration: 400 });
+  };
 
   return (
-    <View
-      style={styles.wrap}
-      onLayout={(e) => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
-      {...pan.panHandlers}
-    >
-      <Svg width={size.width} height={size.height}>
-        <Defs>
-          <RadialGradient id="heat" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor={colour.em} stopOpacity="0.62" />
-            <Stop offset="45%" stopColor={colour.em} stopOpacity="0.2" />
-            <Stop offset="100%" stopColor={colour.em} stopOpacity="0" />
-          </RadialGradient>
-          <RadialGradient id="you" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
-            <Stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
+    <View style={styles.wrap}>
+      <MapLibreMap
+        mapStyle={OPENFREEMAP_STYLE}
+        style={styles.map}
+        onRegionDidChange={onRegionDidChange}
+      >
+        <Camera ref={cameraRef} center={initialLngLat} zoom={DEFAULT_ZOOM} />
 
-        <Rect x={0} y={0} width={size.width} height={size.height} fill={colour.ink} />
-        <Grid width={size.width} height={size.height} />
-
-        {/* Heat — glow only. Never a number, never a word. */}
-        {venues.map((v) => {
-          const p = project(v.at);
-          const heat = heatFor(v.id);
-          return (
-            <Circle
-              key={`heat-${v.id}`}
-              cx={p.x}
-              cy={p.y}
-              r={34 + heat * 30}
-              fill="url(#heat)"
-              opacity={0.25 + heat * 0.6}
+        {/* Venues — heat, story ring, the dot, and the friend/mutual badges. */}
+        {venues.map((v) => (
+          <Marker key={`venue-${v.id}`} lngLat={toLngLat(v.at)} anchor="center" style={styles.zVenue}>
+            <VenueMarker
+              name={v.name}
+              heat={heatFor(v.id)}
+              stories={storyCountFor(v.id)}
+              presence={presenceFor(v.id)}
+              onPress={() => onVenuePress(v)}
             />
-          );
-        })}
+          </Marker>
+        ))}
 
-        {/* Local spots */}
-        {spots.map((s) => {
-          const p = project(s.at);
-          return (
-            <G key={`spot-${s.id}`} pointerEvents="none">
-              <Circle cx={p.x} cy={p.y} r={11} fill="transparent" />
-              <Circle cx={p.x} cy={p.y} r={8} stroke={colour.gold} strokeWidth={2} strokeDasharray="3 3" fill="none" />
-              <Circle cx={p.x} cy={p.y} r={2.6} fill={colour.gold} />
-            </G>
-          );
-        })}
+        {/* Local spots. */}
+        {spots.map((s) => (
+          <Marker key={`spot-${s.id}`} lngLat={toLngLat(s.at)} anchor="center" style={styles.zAbove}>
+            <SpotMarker onPress={() => onSpotPress(s.id)} />
+          </Marker>
+        ))}
 
         {/* After-parties. Always visible — there is no mode that hides them. */}
-        {afterParties.map((a) => {
-          const p = project(a.at);
-          return (
-            <G key={`after-${a.id}`} pointerEvents="none">
-              <Circle cx={p.x} cy={p.y} r={24} fill={colour.disco} opacity={0.14} />
-              <Circle cx={p.x} cy={p.y} r={13} fill={colour.ink2} />
-              <Circle cx={p.x} cy={p.y} r={13} stroke={colour.disco} strokeWidth={2.2} fill="none" />
-              <SvgText x={p.x} y={p.y + 4} textAnchor="middle" fill={colour.disco} fontSize={11} fontWeight="700">
-                {String(a.going)}
-              </SvgText>
-              <SvgText x={p.x} y={p.y + 30} textAnchor="middle" fill="#E4D0FF" fontSize={11} fontWeight="700">
-                {`${a.hostName}’s`}
-              </SvgText>
-            </G>
-          );
-        })}
-
-        {/* Venues */}
-        {venues.map((v) => {
-          const p = project(v.at);
-          const heat = heatFor(v.id);
-          const r = 10 + heat * 8;
-          const presence = presenceFor(v.id);
-          const friendCount = presence?.friends.length ?? 0;
-          const mutualCount = presence?.mutualCount ?? 0;
-          const stories = storyCountFor(v.id);
-
-          return (
-            <G key={`venue-${v.id}`} pointerEvents="none">
-              {stories > 0 && (
-                <Circle cx={p.x} cy={p.y} r={r + 6} stroke={colour.emHi} strokeWidth={2.4} fill="none" strokeOpacity={0.85} />
-              )}
-              <Circle cx={p.x} cy={p.y} r={r} fill={colour.ink2} opacity={0.92} />
-              <Circle
-                cx={p.x}
-                cy={p.y}
-                r={r}
-                stroke={colour.em}
-                strokeWidth={1.6 + heat * 2.2}
-                strokeOpacity={0.4 + heat * 0.6}
-                fill="none"
-              />
-              <Circle cx={p.x} cy={p.y} r={2.6 + heat * 2.4} fill={colour.emHi} opacity={0.55 + heat * 0.45} />
-
-              {/*
-                Two separate badges, deliberately. A friend is named elsewhere
-                and counted here; a mutual is only ever counted. Merging them
-                into one number is exactly what the prototype did.
-              */}
-              {friendCount > 0 && (
-                <>
-                  <Circle cx={p.x + r + 6} cy={p.y - r - 2} r={8} fill={colour.ink2} stroke={colour.emHi} strokeWidth={1.4} />
-                  <SvgText x={p.x + r + 6} y={p.y - r + 1.5} textAnchor="middle" fill={colour.emHi} fontSize={9.5} fontWeight="700">
-                    {String(friendCount)}
-                  </SvgText>
-                </>
-              )}
-              {mutualCount > 0 && (
-                <>
-                  <Circle cx={p.x - r - 6} cy={p.y - r - 2} r={7.5} fill={colour.ink2} stroke={colour.fg3} strokeWidth={1.2} />
-                  <SvgText x={p.x - r - 6} y={p.y - r + 1.5} textAnchor="middle" fill={colour.fg2} fontSize={9} fontWeight="700">
-                    {String(mutualCount)}
-                  </SvgText>
-                </>
-              )}
-
-              <SvgText x={p.x} y={p.y + r + 15} textAnchor="middle" fill={colour.fg} fontSize={11.5} fontWeight="700">
-                {v.name}
-              </SvgText>
-            </G>
-          );
-        })}
+        {afterParties.map((a) => (
+          <Marker key={`after-${a.id}`} lngLat={toLngLat(a.at)} anchor="center" style={styles.zAbove}>
+            <AfterPartyMarker hostName={a.hostName} going={a.going} onPress={() => onAfterPress(a.id)} />
+          </Marker>
+        ))}
 
         {/*
           Friends — exact positions, because the rules already allowed it.
-
-          `pointerEvents="none"` matters: a friend marker sits directly on top
-          of the venue they are at, and without this it swallows the tap. Found
-          by tapping Monarch on a simulator and getting nothing while a venue
-          with nobody on it opened fine.
+          Non-interactive: a friend marker sitting on top of the venue they
+          are at must never swallow the venue's tap. `pointerEvents="none"`
+          is the exact mechanism the old SVG version relied on for the same
+          reason — found by tapping Monarch on a simulator and getting
+          nothing while an empty venue opened fine.
         */}
-        {friends.map((f) => {
-          const p = project(f.at);
-          return (
-            <G key={`friend-${f.id}`} pointerEvents="none">
-              <Circle cx={p.x} cy={p.y} r={13} fill={colour.em} opacity={0.2} />
-              <Circle cx={p.x} cy={p.y} r={7} fill={colour.em} />
-              <Circle cx={p.x} cy={p.y} r={7} stroke={colour.ink} strokeWidth={1.6} fill="none" />
-              <SvgText x={p.x} y={p.y - 13} textAnchor="middle" fill={colour.emHi} fontSize={10.5} fontWeight="700">
-                {f.name}
-              </SvgText>
-            </G>
-          );
-        })}
+        {friends.map((f) => (
+          <Marker key={`friend-${f.id}`} lngLat={toLngLat(f.at)} anchor="center" style={styles.zFriend}>
+            <FriendMarker name={f.name} />
+          </Marker>
+        ))}
 
-        {/* You */}
+        {/* You. */}
         {me && (
-          <G>
-            <Circle cx={project(me).x} cy={project(me).y} r={26} fill="url(#you)" opacity={0.5} />
-            <Circle cx={project(me).x} cy={project(me).y} r={7} fill="#ffffff" />
-            <Circle cx={project(me).x} cy={project(me).y} r={7} stroke={colour.ink} strokeWidth={2} fill="none" />
-          </G>
+          <Marker lngLat={toLngLat(me)} anchor="center" style={styles.zYou}>
+            <YouMarker />
+          </Marker>
         )}
-      </Svg>
+      </MapLibreMap>
 
       <View style={styles.controls}>
-        <MapButton onPress={() => zoom(1.6)} label="+" testID="map-zoom-in" />
-        <MapButton onPress={() => zoom(1 / 1.6)} label="−" testID="map-zoom-out" />
+        <MapButton onPress={() => zoomBy(ZOOM_STEP)} label="+" testID="map-zoom-in" />
+        <MapButton onPress={() => zoomBy(-ZOOM_STEP)} label="−" testID="map-zoom-out" />
         <Pressable style={styles.mapButton} onPress={recentre} testID="map-recentre" accessibilityLabel="Recentre">
           <Icon name="pin" size={18} color={colour.fg} />
         </Pressable>
@@ -365,44 +231,229 @@ export function FuncMap({
   );
 }
 
-function MapButton({ onPress, label, testID }: { onPress: () => void; label: string; testID: string }) {
+// ---------------------------------------------------------------------------
+// Markers
+//
+// Each is a small, self-contained view MapLibre positions and repositions —
+// no manual projection. Circles/badges live in a fixed-size SVG canvas
+// centred on the real coordinate; text labels are plain RN <Text>, absolutely
+// positioned outside that canvas rather than drawn inside it, so a long venue
+// or host name overflows freely instead of being clipped by the SVG viewBox.
+// ---------------------------------------------------------------------------
+
+const VENUE_SIZE = 160;
+const VENUE_C = VENUE_SIZE / 2;
+
+function VenueMarker({
+  name,
+  heat,
+  stories,
+  presence,
+  onPress,
+}: {
+  name: string;
+  heat: number;
+  stories: number;
+  presence: VenuePresenceView | undefined;
+  onPress: () => void;
+}) {
+  const r = 10 + heat * 8;
+  const friendCount = presence?.friends.length ?? 0;
+  const mutualCount = presence?.mutualCount ?? 0;
+
   return (
-    <Pressable style={styles.mapButton} onPress={onPress} testID={testID} accessibilityRole="button" accessibilityLabel={label}>
-      <SvgLabel label={label} />
+    <Pressable onPress={onPress} hitSlop={12} testID={`venue-marker-${name}`}>
+      <View style={{ width: VENUE_SIZE, height: VENUE_SIZE }}>
+        <Svg width={VENUE_SIZE} height={VENUE_SIZE}>
+          <Defs>
+            <RadialGradient id="heat" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor={colour.em} stopOpacity="0.62" />
+              <Stop offset="45%" stopColor={colour.em} stopOpacity="0.2" />
+              <Stop offset="100%" stopColor={colour.em} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+
+          {/* Heat — glow only. Never a number, never a word. */}
+          <Circle cx={VENUE_C} cy={VENUE_C} r={34 + heat * 30} fill="url(#heat)" opacity={0.25 + heat * 0.6} />
+
+          {stories > 0 && (
+            <Circle
+              cx={VENUE_C}
+              cy={VENUE_C}
+              r={r + 6}
+              stroke={colour.emHi}
+              strokeWidth={2.4}
+              fill="none"
+              strokeOpacity={0.85}
+            />
+          )}
+          <Circle cx={VENUE_C} cy={VENUE_C} r={r} fill={colour.ink2} opacity={0.92} />
+          <Circle
+            cx={VENUE_C}
+            cy={VENUE_C}
+            r={r}
+            stroke={colour.em}
+            strokeWidth={1.6 + heat * 2.2}
+            strokeOpacity={0.4 + heat * 0.6}
+            fill="none"
+          />
+          <Circle cx={VENUE_C} cy={VENUE_C} r={2.6 + heat * 2.4} fill={colour.emHi} opacity={0.55 + heat * 0.45} />
+
+          {/*
+            Two separate badges, deliberately. A friend is named elsewhere
+            and counted here; a mutual is only ever counted. Merging them
+            into one number is exactly what the prototype did.
+          */}
+          {friendCount > 0 && (
+            <>
+              <Circle
+                cx={VENUE_C + r + 6}
+                cy={VENUE_C - r - 2}
+                r={8}
+                fill={colour.ink2}
+                stroke={colour.emHi}
+                strokeWidth={1.4}
+              />
+              <SvgText
+                x={VENUE_C + r + 6}
+                y={VENUE_C - r + 1.5}
+                textAnchor="middle"
+                fill={colour.emHi}
+                fontSize={9.5}
+                fontWeight="700"
+              >
+                {String(friendCount)}
+              </SvgText>
+            </>
+          )}
+          {mutualCount > 0 && (
+            <>
+              <Circle
+                cx={VENUE_C - r - 6}
+                cy={VENUE_C - r - 2}
+                r={7.5}
+                fill={colour.ink2}
+                stroke={colour.fg3}
+                strokeWidth={1.2}
+              />
+              <SvgText
+                x={VENUE_C - r - 6}
+                y={VENUE_C - r + 1.5}
+                textAnchor="middle"
+                fill={colour.fg2}
+                fontSize={9}
+                fontWeight="700"
+              >
+                {String(mutualCount)}
+              </SvgText>
+            </>
+          )}
+        </Svg>
+
+        <Text style={[styles.venueLabel, { top: VENUE_C + r + 6 }]} numberOfLines={1}>
+          {name}
+        </Text>
+      </View>
     </Pressable>
   );
 }
 
-function SvgLabel({ label }: { label: string }) {
+const SPOT_SIZE = 40;
+const SPOT_C = SPOT_SIZE / 2;
+
+function SpotMarker({ onPress }: { onPress: () => void }) {
   return (
-    <Svg width={18} height={18} viewBox="0 0 18 18">
-      <SvgText x={9} y={13} textAnchor="middle" fill={colour.fg} fontSize={16} fontWeight="700">
-        {label}
-      </SvgText>
-    </Svg>
+    <Pressable onPress={onPress} hitSlop={16} testID="spot-marker">
+      <Svg width={SPOT_SIZE} height={SPOT_SIZE}>
+        <Circle cx={SPOT_C} cy={SPOT_C} r={11} fill="transparent" />
+        <Circle cx={SPOT_C} cy={SPOT_C} r={8} stroke={colour.gold} strokeWidth={2} strokeDasharray="3 3" fill="none" />
+        <Circle cx={SPOT_C} cy={SPOT_C} r={2.6} fill={colour.gold} />
+      </Svg>
+    </Pressable>
   );
 }
 
-/** A faint grid, so panning and zooming read as movement. */
-function Grid({ width, height }: { width: number; height: number }) {
-  const lines: React.JSX.Element[] = [];
-  const step = 64;
-  for (let x = 0; x < width; x += step) {
-    lines.push(<Rect key={`gx${x}`} x={x} y={0} width={1} height={height} fill={colour.hairline} />);
-  }
-  for (let y = 0; y < height; y += step) {
-    lines.push(<Rect key={`gy${y}`} x={0} y={y} width={width} height={1} fill={colour.hairline} />);
-  }
-  return <>{lines}</>;
+const AFTER_SIZE = 120;
+const AFTER_C = AFTER_SIZE / 2;
+
+function AfterPartyMarker({
+  hostName,
+  going,
+  onPress,
+}: {
+  hostName: string;
+  going: number;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} hitSlop={12} testID={`after-marker-${hostName}`}>
+      <View style={{ width: AFTER_SIZE, height: AFTER_SIZE }}>
+        <Svg width={AFTER_SIZE} height={AFTER_SIZE}>
+          <Circle cx={AFTER_C} cy={AFTER_C} r={24} fill={colour.disco} opacity={0.14} />
+          <Circle cx={AFTER_C} cy={AFTER_C} r={13} fill={colour.ink2} />
+          <Circle cx={AFTER_C} cy={AFTER_C} r={13} stroke={colour.disco} strokeWidth={2.2} fill="none" />
+          <SvgText x={AFTER_C} y={AFTER_C + 4} textAnchor="middle" fill={colour.disco} fontSize={11} fontWeight="700">
+            {String(going)}
+          </SvgText>
+        </Svg>
+        <Text style={[styles.afterLabel, { top: AFTER_C + 16 }]} numberOfLines={1}>
+          {`${hostName}’s`}
+        </Text>
+      </View>
+    </Pressable>
+  );
 }
 
-function mercYToLat(y: number): number {
-  const n = Math.PI - 2 * Math.PI * y;
-  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+const FRIEND_SIZE = 60;
+const FRIEND_C = FRIEND_SIZE / 2;
+
+function FriendMarker({ name }: { name: string }) {
+  return (
+    <View style={{ width: FRIEND_SIZE, height: FRIEND_SIZE }} pointerEvents="none">
+      <Svg width={FRIEND_SIZE} height={FRIEND_SIZE}>
+        <Circle cx={FRIEND_C} cy={FRIEND_C} r={13} fill={colour.em} opacity={0.2} />
+        <Circle cx={FRIEND_C} cy={FRIEND_C} r={7} fill={colour.em} />
+        <Circle cx={FRIEND_C} cy={FRIEND_C} r={7} stroke={colour.ink} strokeWidth={1.6} fill="none" />
+      </Svg>
+      <Text style={[styles.friendLabel, { top: FRIEND_C - 30 }]} numberOfLines={1}>
+        {name}
+      </Text>
+    </View>
+  );
+}
+
+const YOU_SIZE = 60;
+const YOU_C = YOU_SIZE / 2;
+
+function YouMarker() {
+  return (
+    <View style={{ width: YOU_SIZE, height: YOU_SIZE }} pointerEvents="none">
+      <Svg width={YOU_SIZE} height={YOU_SIZE}>
+        <Defs>
+          <RadialGradient id="you" cx="50%" cy="50%" r="50%">
+            <Stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
+            <Stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Circle cx={YOU_C} cy={YOU_C} r={26} fill="url(#you)" opacity={0.5} />
+        <Circle cx={YOU_C} cy={YOU_C} r={7} fill="#ffffff" />
+        <Circle cx={YOU_C} cy={YOU_C} r={7} stroke={colour.ink} strokeWidth={2} fill="none" />
+      </Svg>
+    </View>
+  );
+}
+
+function MapButton({ onPress, label, testID }: { onPress: () => void; label: string; testID: string }) {
+  return (
+    <Pressable style={styles.mapButton} onPress={onPress} testID={testID} accessibilityRole="button" accessibilityLabel={label}>
+      <Text style={styles.mapButtonLabel}>{label}</Text>
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colour.ink },
+  map: { flex: 1 },
   controls: { position: 'absolute', right: 12, bottom: 140, gap: 8 },
   mapButton: {
     width: 40,
@@ -414,4 +465,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  mapButtonLabel: { color: colour.fg, fontSize: 16, fontWeight: '700' },
+  venueLabel: {
+    position: 'absolute',
+    left: -60,
+    width: VENUE_SIZE + 120,
+    textAlign: 'center',
+    color: colour.fg,
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  afterLabel: {
+    position: 'absolute',
+    left: -40,
+    width: AFTER_SIZE + 80,
+    textAlign: 'center',
+    color: '#E4D0FF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  friendLabel: {
+    position: 'absolute',
+    left: -40,
+    width: FRIEND_SIZE + 80,
+    textAlign: 'center',
+    color: colour.emHi,
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  // Style ordering, not depth: MapLibre respects zIndex within its overlay
+  // stack, so a spot or after-party sitting on the same spot as a venue
+  // still wins the tap — the same priority a hand-scored hit-test used to
+  // enforce. Friends and "you" render decorative, always on top.
+  zVenue: { zIndex: 1 },
+  zAbove: { zIndex: 2 },
+  zFriend: { zIndex: 3 },
+  zYou: { zIndex: 4 },
 });
