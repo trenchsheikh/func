@@ -71,3 +71,19 @@ it as a product bug unless it also reproduces on-device.
 
 *Failure mode to watch:* declaring something done because it compiled and
 looked right in a screenshot, when nobody actually tapped the button.
+
+---
+
+## Two supporting agents (added 2026-07-27)
+
+Not roles in the founding-team sense — task-scoped agents the founder runs
+on demand. Both are defined as skills.
+
+- **Librarian** (`func-librarian`) — keeps the repo coherent: files in the
+  right place, `inbox/` processed, no duplicates, no contradictions between
+  the master spec, the tracker, and `docs/`. Proposes; doesn't silently
+  restructure.
+- **Strategist** (`func-strategist`) — looks up from the files and asks
+  what should happen next: what's the riskiest open question, what would
+  most increase Func's chance of working, what goal should the next two
+  weeks serve. Argues a position rather than listing options.

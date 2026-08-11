@@ -80,3 +80,25 @@ downstream of real nights out, not the starting point.
 - **Sparks** — the working name for Func's dating layer once it moves
   downstream of real nights out (V2 direction; the current prototype demos a
   classic swipe deck for legibility in the meantime).
+
+## Process vocabulary (added 2026-07-27)
+
+- **Tier 0–3** — the change-weight system in `func-identity.md`. Tier 0 =
+  Constitution (changing it changes what Func is), Tier 1 = Architecture,
+  Tier 2 = Feature, Tier 3 = Detail.
+- **Intake** — the pipeline turning raw conversations into assessed
+  proposals. See `intake-process.md` and the `func-intake` skill.
+- **Superseded** — an idea replaced by a later decision. Moves to the
+  tracker rather than being deleted; the master spec only ever states
+  current truth.
+
+---
+
+**⚠️ Note (added 2026-08-11, engineering sync):** this file was not updated when
+group-first was retired (Decision 012, 2026-08-07) — it still defines Func by the
+superseded v1.0–v2.1 vocabulary (Pool as hero mechanic, Beacons, Call It, Convoy,
+Plan Flag, Crew Flag). That vocabulary describes the product **before** the Tier 0
+reset; see `func-identity.md` and `docs/DECISION_LOG.md` Decision 012 for current
+terms (traffic light, request → accept → pass, friends/mutuals). Left as-is rather
+than silently rewritten — flagging it is this sync's job, not editing product
+history. Worth a proper pass whenever this file next comes up in real use.

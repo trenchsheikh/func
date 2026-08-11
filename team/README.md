@@ -17,6 +17,12 @@ allowed to do right now.
 4. **[glossary.md](glossary.md)** — Func-specific vocabulary (Beacon, Flare,
    Call It, Backing, and the rest), so you don't have to re-derive it from
    the full spec every time.
+5. **[func-identity.md](func-identity.md)** — the change-tier system (Tier 0
+   Constitution through Tier 3 Detail). Governs how radical a proposed change
+   is and what has to happen before it lands. Read before assessing any new
+   idea against the product.
+6. **[intake-process.md](intake-process.md)** — how raw conversations and
+   notes become assessed proposals. Companion to the `func-intake` skill.
 
 ## Why this folder exists
 
@@ -41,7 +47,17 @@ the conflict doesn't happen again next time.
 - **What Func is, for whom, why now** — `docs/PRODUCT_THESIS.md`.
 - **Build specs** — `docs/specs/`.
 - **Historical reviews and retros** — `team/reviews/`.
+- **Raw notes, transcripts, and unprocessed material** — `inbox/` (unprocessed)
+  and `docs/conversations/` (processed).
 
 This folder is about *how the team behaves*, not *what Func is*. Keep it
 that way — if a file here starts accumulating product facts, they've
 probably drifted from where they belong.
+
+---
+
+**Note (added 2026-08-11, engineering sync):** the product's build has since moved
+into `func-app/` (TypeScript + React Native). For anything touching that repo, also
+read `func-app/HANDOVER.md` and `func-app/FUNCTIONAL-INVENTORY.md` — they carry the
+current engineering state and are kept current by commit; this folder governs process
+and product-direction, not build status.

@@ -323,3 +323,114 @@ Format: status is one of `OPEN`, `ACCEPTED`, `SUPERSEDED (by NNN)`.
 - **Effective immediately:** per the standing order this same file records,
   no further Map v3 build work happens until the founder's Func Bible is
   complete and they say to resume.
+
+---
+
+## Decision 012 — TIER 0 CHANGE: group-first retired; Func is "the bridge"
+
+- **Date:** 2026-08-07
+- **Status:** ACCEPTED (founder directive, given explicitly in live session)
+- **⚠️ Tier 0.** Per `team/func-identity.md` this is a constitution-level change.
+  Master spec goes to **v3.0**. **Every existing deck is stale** — the story they
+  tell is no longer true.
+
+### What the product was
+
+*"Func is where your group finds tonight."* The unit of the product was a **group**,
+not a user — named in the identity doc as "the single thing that differentiates Func
+from everything else." Pool (group meets group) was the hero. The Map v3 spec's
+centrepiece mechanic was **Call It → In/Nah → Plan Flag**: a group votes, a flag
+raises, a 10-minute timer auto-locks the plan.
+
+### What the product is now
+
+> **"Func is just a bridge between you and the opportunities of the night."**
+> — Phoenix, 2026-08-07
+
+Func does not host the conversation, run the debate, or replace WhatsApp. It shows
+you what is on, and it gets you in.
+
+### The founder's reasoning
+
+- **On groups:** *"no groups. forget about that. any group system might just create
+  extra noise which deters people from wanting to use func."*
+- **On voting:** *"no voting on the app for things to do thats dumb - people use
+  other apps to communicate."*
+
+### The resolution — groups are a number, not an object
+
+Groups do not disappear; they stop being a *thing you administrate*. Party size
+becomes an attribute of a request — *"out with 4, looking for a table"* — exactly like
+booking a restaurant. No crews to create, name, join or maintain. Friends and
+**mutuals** (friends-of-friends) remain visible around the map. This keeps what made
+group-first valuable (Func knows people move in packs; hosts know how many are coming)
+and drops what made it annoying.
+
+### Contradiction recorded, not smoothed over
+
+Earlier in the same conversation the founder said *"there are features that make it
+like Hinge but quicker and for groups"* and selected group↔group matching. He then
+said "no groups." Per the contested-idea rule both are on the record; the resolution
+above is the one he gave when the conflict was put to him directly.
+
+### What this retires
+
+Pool · Call It · In/Nah voting · Plan Flag · Convoy · the 10-minute auto-lock · the
+thesis line "where your group finds tonight". Backing/vouches are **deferred, not
+deleted** — *"we can fine tune vouches another time once the app is built."*
+
+### Cost the founder accepted knowingly
+
+The market research positioned Func's moat as "nobody owns groups-meeting-groups."
+That moat is gone. The differentiators are now the map, the traffic light, the pet,
+and the brand. This was stated plainly before he confirmed. It remains an open
+question worth a sharper answer before investor meetings.
+
+---
+
+## Decision 013 — No payments, no ticketing: Func must work without venues
+
+- **Date:** 2026-08-07
+- **Status:** ACCEPTED (founder directive)
+- **Tier 1.**
+- **Founder:** *"func. will only be for promoting things and connecting people to
+  things not managing payments yet. I want func. to be able to work without depending
+  on clubs or venues but once func. is big event managers and clubs will want func.
+  to promote whatever they like."*
+- **Decision:** The commitment mechanic is **request → host accepts → pass**. Money
+  changes hands at the door, not in Func. Promoters and venues get business accounts
+  and can post events and table offers, see and accept requests, message requesters,
+  and pay for visibility.
+- **Why it is right:** zero dependency on venue partnerships is what lets Func launch
+  at all, while still owning the connection — and therefore the demand data that
+  venues will later pay for.
+
+---
+
+## Decision 014 — Prototype rebuilt as real code; SF/LA supersede Velmont
+
+- **Date:** 2026-08-07
+- **Status:** ACCEPTED (founder directive)
+- **Context:** The founder started a Figma Make prototype for investors and app
+  developers and judged it "boring and generic... not a professional app feel." It
+  was built from the older raw concept doc plus a WhatsApp chat, so it had drifted
+  into a different product — individual/dating-first, a stock CartoDB basemap, emoji
+  as the icon set, a "Friends" map layer and a raw vouch count (both of which
+  contradicted the then-current Tier 0 rules).
+- **Decision:** Rebuild as real code under full pixel control, delivered as a
+  shareable link that opens full-screen on a phone. Lives in `prototype-web/`; the
+  Expo `prototype/` stays untouched as the record of the previous direction.
+- **Setting:** **San Francisco, in dollars. First launch is SF and LA.** Velmont and
+  £ are retired.
+- **Map:** real San Francisco street geometry from OpenStreetMap, simplified to 121KB
+  of vector paths and rendered entirely in Func's own language — near-black ground,
+  emerald energy, no stock tiles ever. Real geographic credibility with total style
+  control. Regenerate with `prototype-web/build_map.py`.
+- **Identity:** deep emerald / near-black / white; the eye as the motif; condensed
+  uppercase display type; **no emoji as iconography anywhere**.
+- **New systems adopted this session** (detail in `docs/RAW_IDEAS.md`): the
+  **traffic light** status system, the **pet** (a cute disco creature that doubles as
+  an AI assistant), **afters mode**, **local spots + tokens**, and **night rating**.
+- **Standing principle adopted:** *Func never rushes or tracks you.* No timers, no
+  schedule, no streak pressure. The map shows everything; you filter or search if you
+  want.

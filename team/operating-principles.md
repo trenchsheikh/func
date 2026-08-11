@@ -70,3 +70,27 @@ currently-changing instructions live in `standing-orders.md`, not here.
 
 16. **B2B2C.** Venues pay for demand; users stay free while the product is
     building density. Consumer premium is a later lever, not a launch one.
+
+## Handling this repo
+
+17. **This repo lives in iCloud Drive; treat shell listings as unreliable.**
+    Files can exist as cloud-only placeholders — visible to git and the
+    file-reading tools, invisible to `ls`. Never conclude a file is missing
+    from an empty shell listing, and never overwrite on that basis. Check
+    `git status` first. (Added 2026-07-27 after a session destroyed all five
+    `team/` files this way; they were recovered from git.)
+
+---
+
+**Note (added 2026-08-11, engineering sync):** principle 12 ("aggregate-only heat,
+always... no individual's live location is ever exposed") predates Decision 012's
+Tier 0 reset and the 2026-08-09 presence-model refinement. The current, Tier
+0-compatible rule (`func-app/HANDOVER.md` §3, assessed against `func-identity.md`
+and recorded as Tier 2) is narrower and more specific: **friends** see an exact
+position when the person they're viewing has DTF on; **mutuals** get aggregate
+presence only, never coordinates; everyone else gets anonymous heat only. This
+was a live founder call, not a silent reinterpretation — flagged here so this
+principle doesn't read as contradicting current, shipped behaviour. Principle 17's
+iCloud caveat no longer applies to `func-app/`, which now lives at
+`~/Developer/Func/func-app` — it still applies to anything read from the old
+location.
