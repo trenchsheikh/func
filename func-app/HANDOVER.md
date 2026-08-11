@@ -344,3 +344,52 @@ simulator by hand, or investigating on the host side directly.
 
 **Unaffected by this**: `npm test` and `npx tsc --noEmit` were reliable
 throughout — this only blocks *live* verification, not the automated checks.
+
+### 2026-08-11, later same evening — a fresh session reproduced it too
+
+A new Claude Code session picked up this handover, read this section first as
+instructed, and ran the canary tap. First tap looked promising — it hit a
+MapLibre marker and navigated to a venue detail screen — but that was a false
+positive. Every explicit-target tap after that (Map's DTF chip, Browse's
+Clubs/Dinner/Bars chips, the Next/Save/Open deck buttons, even the Browse
+search bar's `TextInput` — a large, unmissable target, and not a `Pressable`
+at all) landed with zero visible effect. The header back chevron and bottom
+tab bar kept working throughout, exactly as before.
+
+**New data point:** the previous session's simulator (booted `19:28:17Z`,
+i.e. mid-session, already post-dating its own two reboots) was still the one
+attached — this session's first canary tap wasn't actually a clean test. To
+get a genuine one, this session did a **third** full reboot
+(`simctl shutdown` + `simctl boot`) and a fresh `simctl launch`, combined
+with a fresh Claude Code session for the first time. **Still broken.** So:
+neither a fresh tool session nor a fresh simulator boot fixes this alone, and
+combining both doesn't either.
+
+**New data point:** it's not `Pressable`-specific. The search bar's
+`TextInput` also would not focus. Whatever is failing sits below both
+component types — closer to RN's shared touch dispatch (`RCTTouchHandler` /
+the root responder) than to any one component's gesture handling. This is
+still consistent with the original theory (an element-inspector overlay, or
+something it left behind, sitting above the RN root view and swallowing
+touches meant for it) — a reboot not clearing it suggests, if that theory is
+right, the stuck piece survives at the host/tooling layer, not inside the
+guest OS a `simctl` reboot resets.
+
+**Tried and blocked, not ruled out:** this session asked to drive
+Simulator.app directly (via computer-use, outside the dedicated simulator
+tool) to trigger Device → Shake Gesture and reach the RN dev menu, to try
+toggling the inspector explicitly rather than hoping it was already clear.
+**Phoenix denied the access request.** So this specific idea — is there a
+debug overlay still live that a dev-menu toggle would clear — is untested,
+not disproven. If you're reading this and want to try it yourself: Shake
+Gesture is Device menu → Shake Gesture, or ⌘⌃Z, with the Simulator window
+focused.
+
+**Where this leaves it:** two independent sessions, three reboots, a full
+reinstall, and two gesture-injection primitives have all failed to restore
+touch delivery to RN-mediated controls. Per this file's own escalation path
+in the paragraph above — this now needs either Phoenix driving the simulator
+by hand, or someone investigating the host side directly (the automation
+tool's own connection to the simulator, not the simulator's internal state,
+since guest-OS reboots provably don't touch whatever's wrong). Don't spend a
+third session re-running what's already in this list.
