@@ -1,25 +1,24 @@
 # func — engineering handover
 
-**Written 2026-08-10, updated 2026-08-11 (evening session). Read this in full
+**Written 2026-08-10, updated 2026-08-11 (night session). Read this in full
 before touching anything.**
 
 You are continuing work on func, directly under Phoenix Barnes, the founder.
 This document is the state of the world. The paste-in prompt that brought you
 here covers your role and the standard you are held to; this covers what exists.
 
-## ⚠️ Read this first — an open session-continuity issue
+## Note — the simulator tap issue in §9 is resolved
 
-The 2026-08-11 evening session ended mid-work because the iOS Simulator
-control tool stopped delivering taps to React Native `Pressable` components
-specifically — native iOS controls (tab bar, header back button, hardware
-Home button, system alerts) kept working throughout, but no in-app button
-press registered. Full detail, and everything already tried, is in §9. **Try
-a tap on any button as your first simulator action** (e.g. a Map filter
-chip) before doing anything else — if it doesn't register, don't re-diagnose
-from scratch, read §9 first.
-
-If taps work fine for you: great, the issue was likely scoped to that one
-tool session. Proceed to §4a for what's built but not yet live-verified.
+Two 2026-08-11 sessions lost time to the dedicated iOS-Simulator MCP tool's
+`tap` action silently failing to reach RN's touch responder (app/simulator/
+tool restarts didn't fix it). It turned out to be specific to that tool's
+synthetic injection path — **real mouse clicks through the actual
+Simulator.app window work fine**, always did. If a future session hits dead
+taps again: don't spend time on app/simulator restarts, switch straight to
+driving Simulator.app with genuine clicks (computer-use, or by hand) and see
+§9's last entry for the full writeup. Browse filters and the business
+posting/accept-decline loop that were unverified at the point this happened
+are now confirmed working — see §4a.
 
 ---
 
@@ -181,17 +180,30 @@ filters, and Map filters. Four commits, oldest first:
   **Not verified**: posting a table, the accept/decline loop from a
   business's inbox — planned next, blocked by §9.
 
-### Built but not live-verified — do this first
+### Live-verified 2026-08-11 (later session, after §9 resolved)
 
-**Browse filters** (`app/(tabs)/browse.tsx`). Browse had zero filtering
-before this session — no state, no UI, contrary to what the PRD and
-`FUNCTIONAL-INVENTORY.md` 3.10 both describe. Added kind chips (Dinner/Bars/
-Clubs) and search, mirroring Map's already-verified filter pattern exactly
-(same `KINDS`, same match logic). `npm test` 212/212, `npx tsc --noEmit`
-clean, but **never driven live** — the tooling issue in §9 started right
-before this could be tested. Structurally near-identical to Map's filters,
-which are verified, but treat it as unverified until someone actually taps
-the chips and watches the deck change.
+**Browse filters** (`app/(tabs)/browse.tsx`). Kind chips and search both
+confirmed live: tapping Clubs took the deck from "1 of 16" to "1 of 6," Next
+cycled correctly within the filtered set, and search correctly produced the
+"Nothing matches" empty state and correctly matched a real venue name.
+
+**Business dashboard, the two flows §4a left unverified:**
+- **Posting a table** (Nightform → Monarch → "Post a table"): posted, showed
+  a "Posted." confirmation, appeared immediately in "Your tables tonight"
+  and in the consumer-facing venue detail's "Tables tonight" list with the
+  right price and spot count.
+- **Accept/decline loop**: as Maya, requested the just-posted table (party of
+  4) — it appeared in Nightform's Inbox under "Waiting on you" with
+  Accept/"Not this time." **Accept** cleared it, moved the thread to
+  Messages showing "Nightform accepted," and correctly flipped the table to
+  "Full tonight" with its Request button disabled (4 of 4 filled). A second
+  request against the other table, **declined** via "Not this time," cleared
+  correctly, showed "Nightform declined" in the thread, and closed the
+  thread to further messages ("This one is closed.") — all without touching
+  the first table's now-full state.
+
+Demo data was reset afterward (Profile → Reset demo data) to leave a clean
+state.
 
 ---
 
