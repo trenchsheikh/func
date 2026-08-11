@@ -34,6 +34,14 @@ export default function Index(): React.JSX.Element {
   const me = app.meId;
   if (!me) return <Redirect href="/auth" />;
 
+  // A business is its own actor with no owner-person account by design (see
+  // FUNCTIONAL-INVENTORY.md 1.2) — the verification/onboarding gate below is
+  // person-specific (ID checks, date of birth, profile completion) and
+  // doesn't apply. Without this, a signed-in business session bounced to
+  // /auth on every app restart, since `app.state.accounts` never has an
+  // entry for it.
+  if (app.state.businesses[me as string]) return <Redirect href="/(tabs)/map" />;
+
   const account = app.state.accounts[me as string];
   if (!account) return <Redirect href="/auth" />;
 
