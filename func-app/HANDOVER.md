@@ -1,10 +1,25 @@
 # func — engineering handover
 
-**Written 2026-08-10. Read this in full before touching anything.**
+**Written 2026-08-10, updated 2026-08-11 (evening session). Read this in full
+before touching anything.**
 
 You are continuing work on func, directly under Phoenix Barnes, the founder.
 This document is the state of the world. The paste-in prompt that brought you
 here covers your role and the standard you are held to; this covers what exists.
+
+## ⚠️ Read this first — an open session-continuity issue
+
+The 2026-08-11 evening session ended mid-work because the iOS Simulator
+control tool stopped delivering taps to React Native `Pressable` components
+specifically — native iOS controls (tab bar, header back button, hardware
+Home button, system alerts) kept working throughout, but no in-app button
+press registered. Full detail, and everything already tried, is in §9. **Try
+a tap on any button as your first simulator action** (e.g. a Map filter
+chip) before doing anything else — if it doesn't register, don't re-diagnose
+from scratch, read §9 first.
+
+If taps work fine for you: great, the issue was likely scoped to that one
+tool session. Proceed to §4a for what's built but not yet live-verified.
 
 ---
 
@@ -121,6 +136,65 @@ accept; the friend list showing amber as "Out, not sharing".
 
 ---
 
+## 4a. Session update — 2026-08-11, evening
+
+MapLibre (§4's "one committed decision not delivered") shipped earlier the
+same day — commit `cf39f79`. This session picked up from there, chose its
+own workstream (Phoenix: "this is your call... keep going until a genuine
+roadblock"), and did a first Stage 6 pass on business dashboard, Browse
+filters, and Map filters. Four commits, oldest first:
+
+- `fd7637a` — synced `docs/` and `team/` with their actual current content.
+  The migration to this repo (`~/Developer/Func`, see §1) only carried
+  **committed** history, but those files had been edited directly in the old
+  iCloud repo through the 2026-08-07 product reset and never committed — so
+  this repo's copies were frozen at 2026-07-25 (`team/standing-orders.md`
+  still showed the Func Bible build HOLD as active; it was lifted 2026-08-07).
+  `team/func-identity.md` and `docs/PRD.md` didn't exist here at all. Check
+  `git log -- docs/ team/` if this ever looks wrong again — the old repo may
+  still be ahead if someone edited there directly.
+- `f1dcfda` — **fixed a real map bug**, not the one it went looking for. The
+  MapLibre commit flagged a tightly-packed marker cluster (a friend/mutual
+  sitting exactly on a venue, an after-party anchor nearby) as unverified —
+  two taps at "the same coordinate" gave two different results. Zoomed in
+  until the markers were visually separated and tapped each one repeatedly:
+  hit-testing was correct and deterministic every time, so that wasn't it.
+  What was actually happening: `FuncMap.tsx`'s camera position wasn't
+  restored when the native map view got torn down and recreated by the
+  navigator (pushing a venue/after-party screen and coming back) — silently
+  resetting the visible map between two "identical" taps, which is what
+  actually produced the original symptom. Fixed with a module-level
+  `lastKnownCamera`, verified live (reproduced the reset via the header back
+  chevron, confirmed the fix holds).
+- `005b26d` + `2521f32` — the business dashboard had no door. Signup
+  hard-codes `role: 'consumer'` (`app/auth.tsx`); the "QA persona switcher"
+  `FUNCTIONAL-INVENTORY.md` 1.13 claims was ported never was. Added
+  `devSwitchActor` (`src/ui/state/actions.ts`) and a `__DEV__`-gated "Switch
+  actor" sheet on Profile. Along the way found and fixed a real bug it
+  surfaced: `app/index.tsx`'s root gate bounced any business session to
+  `/auth` on every restart, because businesses have no `Account` record by
+  design (`FUNCTIONAL-INVENTORY.md` 1.2) and the gate didn't know that.
+  **Verified live**, before the tooling issue in §9 started: switched to
+  Nightform, Inbox showed its business section, dashboard rendered real
+  data, claiming a third venue worked and correctly stayed claimable after
+  (the exact bug `business.tsx`'s own header comment warns about).
+  **Not verified**: posting a table, the accept/decline loop from a
+  business's inbox — planned next, blocked by §9.
+
+### Built but not live-verified — do this first
+
+**Browse filters** (`app/(tabs)/browse.tsx`). Browse had zero filtering
+before this session — no state, no UI, contrary to what the PRD and
+`FUNCTIONAL-INVENTORY.md` 3.10 both describe. Added kind chips (Dinner/Bars/
+Clubs) and search, mirroring Map's already-verified filter pattern exactly
+(same `KINDS`, same match logic). `npm test` 212/212, `npx tsc --noEmit`
+clean, but **never driven live** — the tooling issue in §9 started right
+before this could be tested. Structurally near-identical to Map's filters,
+which are verified, but treat it as unverified until someone actually taps
+the chips and watches the deck change.
+
+---
+
 ## 5. Rules you must not break
 
 1. **Nothing in `src/domain` may import from outside it.** No React, no
@@ -229,3 +303,44 @@ the user was never asked for.
 The store **quarantines** unreadable or newer-than-this-build documents under a
 separate key rather than discarding them, and surfaces write failures instead
 of swallowing them. Both were prototype bugs. Don't undo them.
+
+---
+
+## 9. Open — simulator stopped delivering taps (2026-08-11 evening)
+
+Partway through the session (mid persona-switcher testing), a stray keystroke
+sent to an unfocused text field toggled React Native's element inspector.
+Clearing it should have been routine. Instead, every tap on an RN `Pressable`
+— every in-app button, every filter chip — stopped registering. Native iOS
+controls kept working the whole time: the tab bar, the header back button/
+chevron, the hardware Home button, system alerts (`UIAlertController`). Only
+RN-mediated touches were affected.
+
+**Everything tried, none of it worked:**
+
+- Multiple full app relaunches (`simctl terminate` + `simctl launch`)
+- Two full simulator OS reboots (`simctl shutdown` + `simctl boot`)
+- Killing and restarting whatever backing process serves the simulator
+  connection (`killall Simulator`, then reboot + relaunch)
+- Detaching and reattaching the simulator panel tool connection
+- A different gesture-injection primitive (`touch_path` instead of `tap`)
+- A full uninstall and reinstall of the app (`simctl uninstall`, then
+  `simctl install` from the existing DerivedData build, wiping all native
+  and JS-persisted state, AsyncStorage included)
+
+The last one is the important data point: on the **freshly reinstalled**
+app's very first screen — Expo's own stock dev-client onboarding dialog,
+not a line of func code — the "Continue" button didn't respond either. That
+rules out anything persisted (app data, native flags, JS bundle state) and
+points at the tap-injection path itself, within that tool session.
+
+**If you hit this:** don't re-diagnose from scratch — tap something trivial
+first (a Map filter chip is a good canary) before doing any other work.
+If it's broken, the list above is what's already been ruled out; a fresh
+Claude Code session (not just a reloaded app) is the one thing that wasn't
+tried, because there wasn't a way to test it from inside the stuck session.
+If a fresh session doesn't fix it, this may need Phoenix driving the
+simulator by hand, or investigating on the host side directly.
+
+**Unaffected by this**: `npm test` and `npx tsc --noEmit` were reliable
+throughout — this only blocks *live* verification, not the automated checks.
