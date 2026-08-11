@@ -40,7 +40,16 @@ import {
   type ThreadId,
   type VenueId,
 } from '../../domain';
-import { asMessageId, asPassId, asRequestId, asSpotId, asStoryId, asTableId, asThreadId } from '../../domain/ids';
+import {
+  asMessageId,
+  asPassId,
+  asRequestId,
+  asSpotId,
+  asStoryId,
+  asTableId,
+  asThreadId,
+  type ActorId,
+} from '../../domain/ids';
 import { heatFor } from '../../data/schema';
 import { addFriendship, removeFriendship } from '../../data/graph';
 import { buildDemoWorld } from '../../data/seed/demo-world';
@@ -114,6 +123,21 @@ export function explain(error: AccessError | string): string {
 export function logout(app: AppContextValue): void {
   app.update((state) => {
     state.session.personId = null;
+  });
+}
+
+/**
+ * Dev-only: point the session at any seeded actor, person or business.
+ *
+ * `FUNCTIONAL-INVENTORY.md` 1.13 calls this out by name — the prototype had
+ * it, func-app didn't, and without it the business dashboard has no door: the
+ * only signup path in `app/auth.tsx` hard-codes `role: 'consumer'`. Callers
+ * must gate this behind `__DEV__` themselves; this function has no opinion
+ * about build type, same as every other action here.
+ */
+export function devSwitchActor(app: AppContextValue, actorId: ActorId): void {
+  app.update((state) => {
+    state.session.personId = actorId;
   });
 }
 

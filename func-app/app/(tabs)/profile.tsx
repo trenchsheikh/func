@@ -7,7 +7,7 @@
  */
 
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { resolvePresence } from '../../src/domain';
@@ -27,7 +27,14 @@ import {
   Spacer,
 } from '../../src/ui/components/kit';
 import { useApp } from '../../src/ui/state/AppProvider';
-import { dropSpot, logout, postStory, removeFriend, resetDemoWorld } from '../../src/ui/state/actions';
+import {
+  devSwitchActor,
+  dropSpot,
+  logout,
+  postStory,
+  removeFriend,
+  resetDemoWorld,
+} from '../../src/ui/state/actions';
 import {
   displayName,
   myCheckIn,
@@ -49,7 +56,27 @@ export default function ProfileScreen(): React.JSX.Element {
   const app = useApp();
   const router = useRouter();
   const [composing, setComposing] = useState(false);
+  const [switchingActor, setSwitchingActor] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  // Dev-only actor list for the persona switcher below — every seeded person
+  // plus every seeded business, since a business is its own actor with no
+  // owner-person account (FUNCTIONAL-INVENTORY.md 1.2) and so wouldn't appear
+  // if this only looked at `state.accounts`.
+  const switchableActors = useMemo(() => {
+    if (!__DEV__) return [];
+    const people = Object.values(app.state.accounts).map((a) => ({
+      id: a.id as string,
+      name: app.state.profiles[a.id as string]?.name ?? a.id,
+      hint: 'person',
+    }));
+    const businesses = Object.values(app.state.businesses).map((b) => ({
+      id: b.id as string,
+      name: b.name,
+      hint: 'business',
+    }));
+    return [...people, ...businesses].sort((a, b) => a.name.localeCompare(b.name));
+  }, [app.state.accounts, app.state.profiles, app.state.businesses]);
 
   const me = app.meId;
   if (!me) {
@@ -207,6 +234,20 @@ export default function ProfileScreen(): React.JSX.Element {
           );
         })}
 
+        {__DEV__ && (
+          <>
+            <Divider />
+            <Label>Dev</Label>
+            <Spacer h={space.sm} />
+            <Button
+              label={`Switch actor (${profile?.name ?? me})`}
+              variant="ghost"
+              testID="dev-switch-actor"
+              onPress={() => setSwitchingActor(true)}
+            />
+          </>
+        )}
+
         <Divider />
         <Button
           label="Reset demo data"
@@ -252,6 +293,32 @@ export default function ProfileScreen(): React.JSX.Element {
           </View>
         ))}
       </Sheet>
+
+      {__DEV__ && (
+        <Sheet visible={switchingActor} onClose={() => setSwitchingActor(false)}>
+          <Label>Dev — switch actor</Label>
+          <Spacer h={space.sm} />
+          <H1>Act as</H1>
+          <Spacer h={space.sm} />
+          <Body>Not shipped — gated behind __DEV__. Jumps the session straight to any seeded person or business.</Body>
+          <Spacer h={space.lg} />
+          {switchableActors.map((actor) => (
+            <View key={actor.id}>
+              <Button
+                label={`${actor.name}${actor.id === me ? ' · current' : ''}`}
+                variant={actor.id === me ? 'primary' : 'ghost'}
+                testID={`switch-actor-${actor.id}`}
+                onPress={() => {
+                  devSwitchActor(app, actor.id as never);
+                  setSwitchingActor(false);
+                  setFeedback(`Acting as ${actor.name} (${actor.hint}).`);
+                }}
+              />
+              <Spacer h={space.sm} />
+            </View>
+          ))}
+        </Sheet>
+      )}
     </Screen>
   );
 }
