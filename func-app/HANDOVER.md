@@ -205,6 +205,52 @@ cycled correctly within the filtered set, and search correctly produced the
 Demo data was reset afterward (Profile → Reset demo data) to leave a clean
 state.
 
+### Stage 6 first pass — 2026-08-11/12, same session, after §9 resolved
+
+Walked the core consumer journey (presence states, map markers, save/check-in,
+Plans), the after-party request→accept→address-reveal loop, and business
+dashboard edge cases (posting at a second venue, claiming a new venue,
+restart persistence). All driven live via real mouse clicks per §9's fix.
+
+**Found and fixed one real bug:** `saveItem`/`unsaveItem` in
+`domain/engagement` were fully wired — Browse and the venue screen both call
+them, a Save button toggles state — but nothing ever read `state.saved` back.
+No screen listed what you'd saved. The prototype had this (its own toast
+said "see it in Plans"), so it's a migration regression, not a missing
+feature. Fixed: added `mySaved()` to `src/ui/state/selectors.ts` (wraps
+domain's existing `savedFor`) and a "Saved" section to
+`app/(tabs)/plans.tsx` with Open/Unsave. Verified live: save two venues from
+Browse, both appear in Plans, Open navigates correctly, Unsave removes them
+and restores the empty state. `npm test` (212/212) and `tsc --noEmit` clean.
+Commit `c34cee4`.
+
+**Everything else checked came back clean, no regressions:**
+- Presence states (DTF/Casual/Off), the +1 hour / Till midday controls, and
+  the "who sees what" breakdown all matched §3's model exactly.
+- The check-in geofence gate still correctly blocks ("You need to actually
+  be there to check in").
+- After-party: request → pending → host accepts → address reveals
+  (`3312 22nd St...`) → thread shows "accepted". No regression from the
+  camera-reset fix or MapLibre.
+- Business dashboard: posting at a second venue (Audio) with edited
+  name/party-size/price fields, claiming a brand-new venue (Nopa) and
+  immediately being able to post at it, and — most importantly — a full
+  `simctl terminate` + `simctl launch` restart while still signed in as
+  Nightform did **not** bounce to `/auth` and kept all 3 venues and posted
+  tables intact. Confirms `005b26d`'s fix still holds.
+
+One friction note, not a product bug: the dev-only actor-switcher sheet
+(`Profile → Switch actor`) mis-targets taps if you click right after a
+scroll — the list keeps settling for a beat after the drag ends. Wait ~1s
+after scrolling it before tapping a name, or you'll land on the wrong actor
+(happened repeatedly this session — burned a fair amount of time before being
+recognized as a settle-timing issue, not a persistence bug).
+
+No further bugs found in this pass. Stage 6 is not exhaustively done —
+photo upload, the pet, cold-open animation, demo mode, and MapLibre visual
+polish are all still untouched — but the core journeys are now confirmed
+solid on top of the 2026-08-11 architectural reset.
+
 ---
 
 ## 5. Rules you must not break
