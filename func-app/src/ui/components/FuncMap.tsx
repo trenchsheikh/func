@@ -67,6 +67,19 @@ const OPENFREEMAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const toLngLat = (at: Coordinates): LngLat => [at.lon, at.lat];
 
 /**
+ * The last camera position this process has seen, outside React state.
+ *
+ * MapLibre's native view can be torn down and recreated by the navigator —
+ * pushing the venue sheet and coming back, say — independently of whether
+ * this component's own React instance unmounts. Without something outside
+ * that lifecycle to remember the last position, the camera silently resets
+ * to `initialCentre` whenever that happens, even though nothing on screen
+ * looked like a reset. A module-level variable survives it; component state
+ * would not.
+ */
+let lastKnownCamera: { center: LngLat; zoom: number } | null = null;
+
+/**
  * Zoom limits.
  *
  * These were an order of magnitude too small on the first (pre-MapLibre) run —
@@ -132,23 +145,34 @@ export function FuncMap({
   onAfterPress,
 }: FuncMapProps): React.JSX.Element {
   const cameraRef = useRef<CameraRef>(null);
+  // Clamped in case the last recorded zoom came from a pinch gesture, which
+  // isn't bounded by MIN_ZOOM/MAX_ZOOM the way the +/- buttons are.
+  const initialZoom = Math.max(
+    MIN_ZOOM,
+    Math.min(MAX_ZOOM, lastKnownCamera?.zoom ?? DEFAULT_ZOOM),
+  );
   // Only used to clamp the +/- buttons — MapLibre owns the camera, this is a
   // read-only mirror of it, never fed back in as a prop.
-  const [zoomLevel, setZoomLevel] = useState(DEFAULT_ZOOM);
+  const [zoomLevel, setZoomLevel] = useState(initialZoom);
 
   // A stable array reference for the whole component's lifetime. `initialCentre`
   // is genuinely initial — the camera must not snap back to it on some later,
   // unrelated re-render (a friend's presence updating elsewhere, say). Keying
   // the memo on the primitive lat/lon rather than the object reference means
   // this stays stable even though the caller recomputes that object every render.
+  //
+  // Prefers the last position this process actually saw the user reach, if
+  // there is one — see `lastKnownCamera` above.
   const initialLngLat = useMemo(
-    () => toLngLat(initialCentre),
+    () => lastKnownCamera?.center ?? toLngLat(initialCentre),
     [initialCentre.lat, initialCentre.lon],
   );
 
   const onRegionDidChange = useCallback(
     (event: NativeSyntheticEvent<ViewStateChangeEvent>) => {
-      setZoomLevel(event.nativeEvent.zoom);
+      const { center, zoom } = event.nativeEvent;
+      lastKnownCamera = { center, zoom };
+      setZoomLevel(zoom);
     },
     [],
   );
@@ -169,7 +193,7 @@ export function FuncMap({
         style={styles.map}
         onRegionDidChange={onRegionDidChange}
       >
-        <Camera ref={cameraRef} center={initialLngLat} zoom={DEFAULT_ZOOM} />
+        <Camera ref={cameraRef} center={initialLngLat} zoom={initialZoom} />
 
         {/* Venues — heat, story ring, the dot, and the friend/mutual badges. */}
         {venues.map((v) => (
