@@ -1,9 +1,22 @@
 /**
  * The small shared pieces every screen is built from.
  *
- * Restrained on purpose — Layer 5 is out of scope for this phase, so these are
- * correct and plain rather than finished. They obey the one identity rule that
- * is already settled: emerald means life, everything else is chrome or glass.
+ * ## The shell is achromatic
+ *
+ * Buttons, cards, chips and sheets carry **no hue**. Colour in func is fully
+ * committed to meaning — temperature on the map, emerald for people — so a
+ * green primary button was quietly spending the product's most loaded signal
+ * on "this is the affirmative action". The primary button is now chrome-white
+ * on black, which is both more expensive-looking and leaves emerald meaning
+ * exactly one thing.
+ *
+ * ## Everything presses
+ *
+ * Every control springs under the finger. This is the bottom of the animation
+ * hierarchy — small moments, small dopamine — and it is the single cheapest
+ * thing that separates an app that feels alive from one that feels like a
+ * form. Springs run on the UI thread, so they hold up while the JS thread is
+ * busy, which is exactly when a press most needs to feel immediate.
  */
 
 import { type ReactNode } from 'react';
@@ -19,8 +32,39 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
-import { colour, radius, space, type as typeScale } from '../theme';
+import { colour, radius, space, spring, type as typeScale } from '../theme';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * The press spring shared by every control.
+ *
+ * `scale` is driven rather than `opacity` because dimming reads as "disabled"
+ * while a physical squash reads as "received". 0.96 is deliberately shallow —
+ * deep enough to feel, shallow enough not to look like a toy.
+ */
+function usePress(depth = 0.96) {
+  const pressed = useSharedValue(0);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - pressed.value * (1 - depth) }],
+  }));
+  return {
+    style,
+    onPressIn: () => {
+      pressed.value = withTiming(1, { duration: 60 });
+    },
+    onPressOut: () => {
+      pressed.value = withSpring(0, spring.press);
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Text
@@ -101,32 +145,36 @@ export interface ButtonProps {
 
 export function Button({ label, onPress, variant = 'primary', disabled, style, testID }: ButtonProps) {
   const isPrimary = variant === 'primary';
+  const press = usePress();
+
   return (
-    <Pressable
+    <AnimatedPressable
       testID={testID}
       accessibilityRole="button"
       accessibilityState={{ disabled: disabled === true }}
       onPress={disabled ? undefined : onPress}
-      style={({ pressed }) => [
+      onPressIn={disabled ? undefined : press.onPressIn}
+      onPressOut={disabled ? undefined : press.onPressOut}
+      style={[
         styles.button,
         isPrimary && styles.buttonPrimary,
         variant === 'ghost' && styles.buttonGhost,
         variant === 'danger' && styles.buttonDanger,
         disabled === true && styles.buttonDisabled,
-        pressed && !disabled && styles.buttonPressed,
+        press.style,
         style,
       ]}
     >
       <Text
         style={[
           styles.buttonLabel,
-          isPrimary && { color: colour.ink },
+          isPrimary && { color: colour.void },
           variant === 'danger' && { color: colour.danger },
         ]}
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -143,19 +191,26 @@ export function Chip({
   tone?: string;
   testID?: string;
 }) {
-  const accent = tone ?? colour.em;
+  // Chips default to chrome, not emerald. A filter is not a person.
+  const accent = tone ?? colour.fg;
+  const press = usePress(0.93);
+
   return (
-    <Pressable
+    <AnimatedPressable
       testID={testID}
       accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityState={{ selected: active === true }}
       onPress={onPress}
+      onPressIn={onPress ? press.onPressIn : undefined}
+      onPressOut={onPress ? press.onPressOut : undefined}
       style={[
         styles.chip,
-        active === true && { backgroundColor: `${accent}22`, borderColor: accent },
+        active === true && { backgroundColor: 'rgba(255,255,255,0.10)', borderColor: accent },
+        press.style,
       ]}
     >
       <Text style={[styles.chipLabel, active === true && { color: accent, fontWeight: '700' }]}>{label}</Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -244,12 +299,15 @@ export function Screen({ children, style }: { children: ReactNode; style?: Style
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colour.ink },
+  screen: { flex: 1, backgroundColor: colour.void },
   card: {
     backgroundColor: colour.surface,
     borderRadius: radius.md,
     borderWidth: 1,
+    // Top-lit: a brighter top edge and a dark body is what reads as a machined
+    // surface catching light, where a uniform 1px grey reads as a wireframe.
     borderColor: colour.hairline,
+    borderTopColor: colour.hairlineHi,
     padding: space.md,
   },
   divider: { height: 1, backgroundColor: colour.hairline, marginVertical: space.md },
@@ -261,12 +319,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space.lg,
   },
-  buttonPrimary: { backgroundColor: colour.em },
-  buttonGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colour.hairline },
+  // Chrome-white, not emerald — see this file's header. The primary action is
+  // the brightest thing on a black screen, which is enough emphasis on its own.
+  buttonPrimary: { backgroundColor: '#F2F5F8' },
+  buttonGhost: { backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: colour.hairline },
   buttonDanger: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colour.danger },
-  buttonDisabled: { opacity: 0.35 },
-  buttonPressed: { opacity: 0.8 },
-  buttonLabel: { fontSize: 15, fontWeight: '700', color: colour.fg },
+  buttonDisabled: { opacity: 0.3 },
+  buttonLabel: { fontSize: 15, fontWeight: '700', color: colour.fg, letterSpacing: 0.1 },
   chip: {
     height: 34,
     paddingHorizontal: space.md,
@@ -289,13 +348,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toggleKnob: { width: 20, height: 20, borderRadius: 10, backgroundColor: colour.fg4 },
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(2,6,4,0.72)' },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)' },
   sheet: {
     backgroundColor: colour.ink2,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     borderTopWidth: 1,
-    borderColor: colour.hairline,
+    borderColor: colour.hairlineHi,
     maxHeight: '86%',
   },
   sheetGrabber: {

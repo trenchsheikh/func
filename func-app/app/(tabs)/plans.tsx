@@ -10,7 +10,10 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type { AccessRequest, Pass } from '../../src/domain';
+import { heatFor } from '../../src/data/schema';
+import { Celebrate } from '../../src/ui/components/Celebrate';
 import { Icon } from '../../src/ui/components/Icon';
+import { PassCard } from '../../src/ui/components/PassCard';
 import {
   Body,
   Button,
@@ -29,7 +32,7 @@ import {
 import { useApp } from '../../src/ui/state/AppProvider';
 import { cancelRequest, rateNight, toggleSaved } from '../../src/ui/state/actions';
 import { displayName, mySaved, myPasses, myRequests, unratedPass } from '../../src/ui/state/selectors';
-import { colour, radius, space } from '../../src/ui/theme';
+import { colour, heat as heatColour, radius, space } from '../../src/ui/theme';
 
 export default function PlansScreen(): React.JSX.Element {
   const app = useApp();
@@ -184,26 +187,30 @@ export default function PlansScreen(): React.JSX.Element {
         )}
       </ScrollView>
 
-      <Sheet visible={showPass !== null} onClose={() => setShowPass(null)}>
+      {/*
+        The pass, shown as an object on a blackout rather than as a sheet.
+        This is the top of the animation hierarchy: getting into somewhere is a
+        change in social status and has to be staged like one. It is also the
+        thing the brief says should be "worth showing someone" — which means it
+        has to survive being held up to another person's face, so nothing else
+        is on screen.
+      */}
+      <Celebrate
+        visible={showPass !== null}
+        tint={showPass ? heatColour(passHeat(app, showPass)) : colour.life}
+        onClose={() => setShowPass(null)}
+      >
         {showPass && (
-          <View style={styles.passCard}>
-            <Label tone="life">func pass</Label>
-            <Spacer h={space.sm} />
-            <H1>{venueName(app, showPass)}</H1>
-            <Small>
-              {showPass.partySize} {showPass.partySize === 1 ? 'person' : 'people'} · tonight
-            </Small>
-            <Spacer h={space.lg} />
-            <View style={styles.qr}>
-              <Icon name="token" size={96} color={colour.em} />
-            </View>
-            <Spacer h={space.lg} />
-            <H2 tone="life">{showPass.code}</H2>
-            <Spacer h={space.xs} />
-            <Small>Show this on the door</Small>
-          </View>
+          <PassCard
+            venue={venueName(app, showPass)}
+            detail={`${showPass.partySize} ${showPass.partySize === 1 ? 'person' : 'people'} · tonight`}
+            code={showPass.code}
+            heat={passHeat(app, showPass)}
+            behind="#000000"
+            width={330}
+          />
         )}
-      </Sheet>
+      </Celebrate>
 
       <Sheet visible={rating} onClose={() => setRating(false)}>
         <Label>Last night</Label>
@@ -255,6 +262,17 @@ export default function PlansScreen(): React.JSX.Element {
 
 function venueName(app: ReturnType<typeof useApp>, pass: Pass): string {
   return app.places.venueByIdSync(pass.venueId)?.name ?? 'Somewhere';
+}
+
+/**
+ * How hot the room this pass gets you into is.
+ *
+ * The pass is tinted with the venue's live temperature, so a pass to somewhere
+ * going off does not look like a pass to a quiet bar. That difference is what
+ * "scarce" and "worth showing someone" actually cash out to on screen.
+ */
+function passHeat(app: ReturnType<typeof useApp>, pass: Pass): number {
+  return heatFor(app.state, pass.venueId, 0.3);
 }
 
 function requestTitle(app: ReturnType<typeof useApp>, request: AccessRequest): string {

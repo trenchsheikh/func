@@ -29,7 +29,6 @@ import {
   Body,
   Button,
   Card,
-  Display,
   H1,
   H2,
   Label,
@@ -38,6 +37,7 @@ import {
   Small,
   Spacer,
 } from '../src/ui/components/kit';
+import { FuncMark } from '../src/ui/components/FuncMark';
 import { useApp } from '../src/ui/state/AppProvider';
 import { logout } from '../src/ui/state/actions';
 import { colour, radius, space } from '../src/ui/theme';
@@ -61,7 +61,10 @@ export default function AuthScreen(): React.JSX.Element {
       <Screen>
         <ScrollView contentContainerStyle={styles.pad}>
           <Spacer h={space.xxl} />
-          <Display tone="life">func</Display>
+          {/* The mark, not the word set in emerald. Emerald means people; the
+              identity is chrome. This is the first screen a new user sees, so
+              it is the first place that rule has to hold. */}
+          <FuncMark width={190} />
           <Spacer h={space.sm} />
           <Body>A bridge between you and the opportunities of the night.</Body>
 

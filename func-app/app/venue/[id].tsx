@@ -36,8 +36,9 @@ import {
   visitSpot,
   type ActionResult,
 } from '../../src/ui/state/actions';
+import { Landed } from '../../src/ui/components/Celebrate';
 import { displayName, seatsLeft, venueSummary } from '../../src/ui/state/selectors';
-import { colour, space } from '../../src/ui/theme';
+import { colour, heat as heatColour, radius, space } from '../../src/ui/theme';
 
 const PARTY_SIZES = [1, 2, 3, 4, 5, 6];
 
@@ -115,6 +116,15 @@ function PlaceScreen({ venueId }: { venueId: string }): React.JSX.Element {
   const [requesting, setRequesting] = useState<TableOffer | null>(null);
   const [partySize, setPartySize] = useState(4);
   const [feedback, setFeedback] = useState<string | null>(null);
+  /**
+   * What was just asked for.
+   *
+   * Sending a request used to change nothing on screen at all — verified live
+   * on 2026-08-12: the sheet closed and the venue was byte-identical, table
+   * still reading "6 of 6 spots left". The request was recorded correctly, so
+   * this is purely the missing acknowledgement.
+   */
+  const [asked, setAsked] = useState<{ table: string; host: string; size: number } | null>(null);
 
   const venue = app.places.venueByIdSync(asVenueId(venueId));
   if (!venue) return <Empty title="Not found" body="That place is not on the map." />;
@@ -146,7 +156,7 @@ function PlaceScreen({ venueId }: { venueId: string }): React.JSX.Element {
 
         <Spacer h={space.lg} />
         <Row>
-          <Stat label="Right now" value={heatWord(summary.heat)} tone="life" />
+          <Stat label="Right now" value={heatWord(summary.heat)} heat={summary.heat} />
           <Stat label="In" value={priceRange(venue.entry.min.amount, venue.entry.max.amount)} />
           <Stat label="A night" value={priceRange(venue.spend.min.amount, venue.spend.max.amount)} />
         </Row>
@@ -273,14 +283,47 @@ function PlaceScreen({ venueId }: { venueId: string }): React.JSX.Element {
               label="Send request"
               testID="send-request"
               onPress={() => {
-                const result = requestTable(app, requesting, partySize);
+                const table = requesting;
+                const result = requestTable(app, table, partySize);
                 setRequesting(null);
                 show(result);
+                // Only acknowledge what actually happened. Confirming a
+                // request that the domain rejected would be a lie told with
+                // an animation, which is worse than the silence it replaces.
+                // The host is the table's business, not the venue — a venue can
+                // be claimed by a promoter who is not the room itself.
+                if (result.ok) {
+                  setAsked({
+                    table: table.name,
+                    host: displayName(app.state, table.businessId as string),
+                    size: partySize,
+                  });
+                }
               }}
             />
           </>
         )}
       </Sheet>
+
+      {/*
+        The acknowledgement. Deliberately the *middle* rung of the animation
+        hierarchy — a request is a real commitment and has to land, but it is
+        not a yes yet. Celebrating here would set the user up for a fall when
+        the host declines.
+      */}
+      <Landed visible={asked !== null} onDone={() => setAsked(null)}>
+        {asked && (
+          <View style={styles.asked}>
+            <View style={[styles.askedDot, { backgroundColor: heatColour(summary.heat) }]} />
+            <View style={styles.flex}>
+              <Small tone="default">Asked for {asked.table}</Small>
+              <Small>
+                {asked.size} of you · waiting on {asked.host}
+              </Small>
+            </View>
+          </View>
+        )}
+      </Landed>
     </Screen>
   );
 }
@@ -316,12 +359,21 @@ function WhoIsHere({ friends, mutualCount }: { friends: readonly string[]; mutua
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: 'life' }) {
+/**
+ * One of the three facts across the top of a venue.
+ *
+ * `heat` colours both the value and the card's own edge with the room's actual
+ * temperature. It is the same ramp the map uses, so "Going off" here is
+ * literally the same colour as the glow you tapped to get here — the venue
+ * screen and the map stop being two unrelated views of one place.
+ */
+function Stat({ label, value, heat }: { label: string; value: string; heat?: number }) {
+  const hot = heat === undefined ? null : heatColour(heat);
   return (
-    <Card style={styles.flex}>
+    <Card style={[styles.flex, hot ? { borderColor: hot, borderTopColor: hot } : null]}>
       <Label>{label}</Label>
       <Spacer h={space.xs} />
-      <H2 tone={tone === 'life' ? 'life' : 'default'}>{value}</H2>
+      <H2 style={hot ? { color: hot } : undefined}>{value}</H2>
     </Card>
   );
 }
@@ -366,4 +418,17 @@ const styles = StyleSheet.create({
     borderColor: colour.em,
   },
   friendDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colour.em },
+  asked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    alignSelf: 'stretch',
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(12,12,15,0.96)',
+    borderWidth: 1,
+    borderColor: colour.hairlineHi,
+  },
+  askedDot: { width: 9, height: 9, borderRadius: 5 },
 });
