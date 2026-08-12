@@ -30,20 +30,18 @@ are now confirmed working — see §4a.
 | `func-app/FUNCTIONAL-INVENTORY.md` | The checklist the migration is measured against. Every capability, with a destination. |
 | `prototype-web/` | **Frozen.** Tag `prototype-web-reference`, commit `6d901dd`. The old vanilla-JS prototype, still runnable, kept as the parity oracle. Do not develop it. |
 | `prototype/` | The retired Expo/Velmont direction. Do not build on it. |
-| `func. - prototype 1/` | A bare SwiftUI template, separate git repo, no functionality. Ignore. |
 | `docs/` | Product truth: `PRD.md`, `DECISION_LOG.md`, `PRODUCT_THESIS.md` |
 | `team/` | How the team operates. `standing-orders.md` is live founder instruction. `func-identity.md` holds the Tier 0 constitution. |
 
-Repo is at `~/Library/Mobile Documents/com~apple~CloudDocs/All Files/Func.`
-(note the trailing period). Work happens on `main`. **No remote** — GitHub push
-is blocked on Phoenix running `gh auth login`; do not set one up without asking.
+Repo is at `~/Developer/Func`. Work happens on `main`. **No remote** — GitHub
+push is blocked on Phoenix running `gh auth login`; do not set one up without
+asking.
 
-### ⚠️ iCloud
-
-Files can be cloud-only placeholders — tracked by git, readable by the file
-tools, **invisible to `ls`**. Never conclude a file is missing from a shell
-listing. Shell *writes* may fail with "Operation not permitted"; use the
-file-writing tools.
+*(This repo was cloned 2026-08-11 from a since-deleted iCloud-hosted copy to
+escape native-build failures there. The iCloud copy was removed 2026-08-12 —
+it had fallen behind this one and its few unique uncommitted edits were
+folded in first. The old cloud-placeholder-file caveat that used to live here
+no longer applies.)*
 
 ---
 
@@ -56,9 +54,11 @@ On 2026-08-09 Phoenix issued an architectural reset. Four changes, all landed:
 After-parties (which the mode used to hide entirely) are now permanently
 visible.
 
-**2 — The product is `func`.** Lowercase. No trailing full stop — that was a
-judgment call I took and flagged; the `func.` lockup is treated as logo-only.
-**Phoenix has not confirmed this.** If he says otherwise, it's a rename.
+**2 — The product is `func`.** Lowercase. **No trailing full stop — confirmed
+by Phoenix on 2026-08-12** ("always 'func' never 'func.'"). This applies to the
+**logo lockup too**, not just prose: an aesthetic-reset pass drew a full stop
+after the `c` in the chrome mark and it was removed on his correction. No
+longer an open question — see §7.
 
 **3 — Presence must not require constant app usage.** The core change. Details
 in §3.
@@ -326,7 +326,7 @@ Surface them again if they become load-bearing; do not silently decide.
 
 | Call | Current behaviour |
 |---|---|
-| **Product name** | `func`, no trailing full stop. Unconfirmed. |
+| ~~**Product name**~~ | **Settled 2026-08-12** — `func`, never `func.`, in prose and in the mark. See §2. |
 | **The rating curve** | Carried over from the prototype **unchanged and deliberately**: three stars counts as *negative*, and a bad night moves heat almost 3× as far as a good one (−0.14 vs +0.05). This looks wrong. It is a product call, not a refactor. |
 | **Party size caps at 6** | The prototype's "6+" chip meant exactly 6. Made honest rather than fixed. |
 | **Amber shares no location** | Only DTF does. Phoenix named DTF specifically. |

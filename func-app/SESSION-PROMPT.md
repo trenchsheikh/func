@@ -15,8 +15,7 @@ Read these, in this order, and do not start work until you have:
 4. `team/func-identity.md` — the Tier 0 constitution.
 5. `docs/PRD.md` — the feature and screen spec.
 
-The repo is at `~/Library/Mobile Documents/com~apple~CloudDocs/All Files/Func.`
-(trailing period is part of the name). The app is `func-app/`.
+The repo is at `~/Developer/Func`. The app is `func-app/`.
 
 ## Your role
 
@@ -106,9 +105,12 @@ Profile → **Reset demo data** returns the app to a known state.
    mutual's position cannot leak. Do not add fields to it without thinking
    very hard about what you are doing.
 6. A `SCHEMA_VERSION` bump ships with its migration in the same commit.
-7. **Commit `func-app/` paths only.** `docs/`, `team/`, `CLAUDE.md` and
-   `inbox/` carry uncommitted work from a different, concurrent work stream.
-   Check `git diff --cached --name-only` before every commit.
+7. **Commit `func-app/` paths only** unless you were specifically asked to
+   touch `docs/`, `team/`, or `CLAUDE.md` — those are product/founder
+   territory, not engineering's. Check `git diff --cached --name-only` before
+   every commit. (Until 2026-08-12 this repo coexisted with a second, iCloud
+   copy where those files were edited directly and uncommitted; that copy is
+   gone now, so there is nothing left to reconcile against.)
 8. Never commit secrets. Nothing leaves this machine — no remote, no
    third-party service — without Phoenix asking for that specific action.
 9. No history-destroying git operations without explicit, scoped permission.

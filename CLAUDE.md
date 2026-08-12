@@ -49,6 +49,11 @@ Git clones only carry **committed** history. `docs/` and `team/` in the old
 location had several files that were current but never committed (edited
 directly through 2026-08-07's product reset), so they did not come across in
 the clone — this repo's copies were stale at the pre-reset (2026-07-25)
-state until synced by hand on 2026-08-11. If `docs/` or `team/` content ever
-looks inconsistent with `func-app/HANDOVER.md` again, check whether the old
-location has newer uncommitted edits before trusting either copy blindly.
+state until synced by hand on 2026-08-11.
+
+**2026-08-12: the old iCloud location was deleted.** A folder tidy found it
+still existed alongside this repo, diverged only by uncommitted `docs/`/`team/`
+edits — all of which were already folded into this repo's synced copies,
+except one file (`docs/conversations/2026-07-27-friend-pitch-brainstorm.md`,
+recovered and committed here). This repo (`~/Developer/Func`) is now the only
+copy; there is nothing left to cross-check.
