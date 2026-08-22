@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "func",
+    "slug": "func",
+    "version": "0.1.0",
+    "scheme": "func",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#16161a",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#16161a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.func.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.func.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#16161a",
+        "foregroundImage": "./assets/icon.png"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsVersion": "11.20.1"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    }
+  }
+}

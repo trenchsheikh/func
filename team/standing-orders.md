@@ -13,7 +13,34 @@ or change it. Newest first.
 
 ---
 
-## 🟢 Prototype rebuilt as real code — `prototype-web/` is the live prototype
+## 🟢 Pool restored — `func-mobile/` is the active build; Mapbox over MapLibre
+
+- **Issued:** 2026-08-21
+- **Order:** Pool (capacity × access toggles, batch request review, pre-accept
+  messages, auto-created group chats) is back as the hero mechanic — see Decision 015.
+  Call It, In/Nah voting, Plan Flag, Convoy and Sparks stay retired/undefined; only
+  Pool itself is reversed from the 2026-08-07 retirement below.
+  - **Active build is `func-mobile/`** — Expo SDK 57, RN, TypeScript, `@rnmapbox/maps`
+    with `projection: 'globe'`. Needs a Mapbox account + `EXPO_PUBLIC_MAPBOX_TOKEN` in
+    `.env` — none exists on this Mac yet, so the globe itself has never actually been
+    seen rendering; without it the map falls back to a labelled schematic view.
+  - **`func-app/` and `prototype-web/` are archived, not deleted** — moved to
+    `archive/`. `func-app/` was mid-migration onto MapLibre and was fully
+    Decision-012-compliant; that work is paused, not wrong, if Pool/Mapbox ever get
+    reversed again.
+  - `func-mobile/` was sitting untracked in git (52 files, never committed) as of this
+    entry — stage/commit it before doing further build work on it, or an accidental
+    delete loses everything with no recovery path.
+- **Supersedes:** the entry directly below, as far as which app is being built and
+  which map library. That entry's identity/colour/city notes (chrome-on-black, SF/LA
+  in dollars, no emoji) are untouched by this one and still apply.
+
+## ~~🟢 Prototype rebuilt as real code — `prototype-web/` is the live prototype~~ (SUPERSEDED 2026-08-21)
+
+**Superseded 2026-08-21** by the entry above — the active build moved to
+`func-mobile/` and the map library moved back to Mapbox. Kept below for the record;
+the identity/colour/city decisions in it are still current, only the "which
+app/which map library" parts changed.
 
 - **Issued:** 2026-08-07
 - **Order:** The investor/developer prototype is now built as real code in

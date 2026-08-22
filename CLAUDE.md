@@ -21,7 +21,8 @@ the file.
 
 | Path | What |
 |---|---|
-| `func-app/` | **The product.** TypeScript + React Native (Expo dev client). |
+| `func-mobile/` | **The product / active build.** TypeScript + React Native (Expo dev client), Pool mechanic, Mapbox globe. See Decision 015. |
+| `archive/` | Superseded builds — `func-app/` (MapLibre port, paused mid-migration), `prototype/`, `prototype-web/`. Reference only, not deleted. |
 | `team/` | How the team operates. Roles, principles, standing orders, glossary, change tiers. |
 | `team/func-identity.md` | The Tier 0–3 change system. Read before assessing any new idea. |
 | `docs/` | What Func *is*. Thesis, decision log, specs, research, design. |

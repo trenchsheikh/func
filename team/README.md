@@ -61,3 +61,10 @@ into `func-app/` (TypeScript + React Native). For anything touching that repo, a
 read `func-app/HANDOVER.md` and `func-app/FUNCTIONAL-INVENTORY.md` — they carry the
 current engineering state and are kept current by commit; this folder governs process
 and product-direction, not build status.
+
+**Note (added 2026-08-21, superseding the above):** the active build moved again, to
+`func-mobile/` — see Decision 015. `func-app/` is archived (`archive/func-app/`), its
+`HANDOVER.md`/`FUNCTIONAL-INVENTORY.md` now describe a paused, not current, build.
+`func-mobile/` doesn't have equivalent handover docs yet — just a `README.md`. Worth
+writing one before the next session picks this up, so this same gap doesn't repeat a
+third time.

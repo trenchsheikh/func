@@ -434,3 +434,51 @@ question worth a sharper answer before investor meetings.
 - **Standing principle adopted:** *Func never rushes or tracks you.* No timers, no
   schedule, no streak pressure. The map shows everything; you filter or search if you
   want.
+
+---
+
+## Decision 015 — Pool restored as the hero mechanic; Mapbox restored over MapLibre
+
+- **Date:** 2026-08-21
+- **Status:** ACCEPTED (founder directive, confirmed live: *"this most recent build is
+  the current one. all else is old"*)
+- **Context:** A separate chat session (not primed with this repo's `CLAUDE.md` or
+  `team/`) produced `func-skeleton-handover.md` and a self-contained Claude Code build
+  prompt, working from the "Master Product Spec" Google Doc (last synthesised
+  2026-07-27 — 11 days *before* Decision 012) instead of this log. Pool was specced
+  throughout as the locked "hero mechanic," with no awareness Decision 012 had retired
+  it. The resulting build, `func-mobile/`, was reviewed against this log mid-session;
+  rather than treat the mismatch as an error to correct, the founder confirmed the
+  newer spec is what he wants built.
+- **Decision:**
+  - **Pool is restored** — capacity (`capped`/`uncapped`) × access (`private`/`public`),
+    batch request review, pre-accept messages, an auto-created group chat per invite.
+    Decision 012's retirement of Pool is reversed.
+  - **Call It, In/Nah voting, and Plan Flag stay retired.** Nothing in the new spec
+    revives them; Decision 012 stands on those three.
+  - **Convoy stays retired** (emergent read from clustered DTF pins, no entity) and
+    **Sparks stays undefined** — both docs agree here.
+  - **Groups are lighter-weight than pre-012, not identical to it.** `hostGroupId` /
+    `attendeeGroupIds` are bare id references with party size on the request, not
+    administrable group objects — Decision 012's "party size, not a group to maintain"
+    principle survives inside the restored Pool mechanic.
+  - **Mapbox (`@rnmapbox/maps`, `projection: 'globe'`) replaces MapLibre** as the base
+    map library, reversing the 2026-08-07 standing order. The MapLibre reasoning (art
+    direction, no billing) wasn't re-litigated in the newer session — flagging that here
+    so it isn't silently re-reversed again without anyone noticing.
+  - **`func-mobile/` is the active build.** `func-app/` (the MapLibre-based TS/RN port,
+    mid-migration per its own `FUNCTIONAL-INVENTORY.md` and Decision-012-compliant) and
+    `prototype-web/` (the SF/LA JS demo, previously "the live prototype") are superseded
+    and moved to `archive/`. Nothing is deleted — recoverable from `archive/` or git
+    history.
+- **Cost accepted knowingly:** `func-app`'s in-progress migration work is parked, not
+  finished, and not wrong if Pool/MapLibre ever get re-reversed. `prototype-web` stops
+  being the investor-facing demo unless told otherwise — **flagged, not confirmed**:
+  don't assume it's retired for that purpose too without checking.
+- **Process gap this exposes:** two independent build sessions in three weeks
+  (`func-mobile` here, and whatever produced `func-app`) each worked from a different
+  source of truth without cross-checking this log, despite `CLAUDE.md` and
+  `team/README.md` both saying to read `team/` before build work. Worth deciding
+  whether future Claude Code sessions should be pointed at this repo directly by
+  default rather than handed a self-contained prompt that re-derives requirements from
+  scratch.
