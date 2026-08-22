@@ -40,8 +40,8 @@ listing.** Use the file tools; check `git status`.
 
 | Path | What |
 |---|---|
-| `docs/DECISION_LOG.md` | Decisions 001–014. **The source of truth for direction.** |
-| `docs/PRODUCT_THESIS.md` | One-page thesis, v3.0 |
+| `docs/DECISION_LOG.md` | Decisions 001–016. **The source of truth for direction.** |
+| `docs/PRODUCT_THESIS.md` | One-page thesis, v4.0 |
 | `docs/PRD.md` | This file |
 | `docs/RAW_IDEAS.md` | Every raw idea, logged verbatim, with status |
 | `team/func-identity.md` | The Tier 0–3 change system. Read before assessing any idea. |
@@ -349,9 +349,11 @@ Places worth pushing, none of them agreed yet:
 - The pet as an actual AI concierge is the most defensible moat on the table, and the least
   developed.
 
-## ⚠️ Every deck generated before 2026-08-07 is stale
+## ⚠️ Every deck generated before 2026-08-22 is stale
 
-They tell a story about groups that is no longer true. Do not send one.
+Decks from before 2026-08-07 tell a story about groups that is no longer true. Decks from
+2026-08-07 to 2026-08-21 predate the Tier 0 "safe by construction" item (Decision 016) and
+are stale by the identity doc's rule. Do not send one.
 
 ---
 

@@ -2,8 +2,8 @@
 
 *One page. If this stops being true, we change the product, not the page.*
 
-**Version 3.0 — 2026-08-07.** Tier 0 last changed: 2026-08-07 (Decision 012).
-Every deck generated before this date is stale.
+**Version 4.0 — 2026-08-22.** Tier 0 last changed: 2026-08-22 (Decision 016, additive:
+"safe by construction"). Every deck generated before this date is stale.
 
 ## The line
 

@@ -482,3 +482,51 @@ question worth a sharper answer before investor meetings.
   whether future Claude Code sessions should be pointed at this repo directly by
   default rather than handed a self-contained prompt that re-derives requirements from
   scratch.
+
+## Decision 016 — Identity background pinned to the chrome icon; promoter events are extended PoolInvites; trust & safety is a whole-app requirement
+
+- **Date:** 2026-08-22
+- **Status:** ACCEPTED (founder answers to two open spec questions, plus a directive given
+  with them). Exact hex values: **PENDING the source file** — see (a).
+- **⚠️ Tier 0 (additive).** Founder confirmed 2026-08-22: *"yes add it to Tier 0."* Master
+  spec goes to **v4.0**; `team/func-identity.md` gains the "Safe by construction" item.
+  **Every existing deck is stale** by the identity doc's rule — note this change adds a
+  constraint rather than changing the story, so pre-existing decks are stale by rule, not
+  because they now say something false.
+- **Context:** The 2026-08-22 verification pass (globe confirmed rendering on-device with a
+  real Mapbox token; 11/11 tests passing) left two spec questions that were explicitly not
+  to be defaulted. Phoenix answered both.
+- **Decision:**
+  - **(a) Background / chrome-black identity colour = the chrome `func.` app-icon render
+    Phoenix supplied in chat ("this colouring").** Read off that image: the surround is
+    **true black `#000000`**; the icon tile itself is a barely-lifted near-black (reads
+    ≈ `#0b0b0c`–`#101012`); the lettering is a chrome gradient (highlight ≈ `#e9e9eb`,
+    mid ≈ `#8e8e92`, shadow ≈ `#3b3b3e`). These are *visual estimates* — the render is not
+    in the repo, so nothing could be sampled. **To pin exact values:** drop the source PNG
+    at `docs/brand/func-icon-chrome.png`, sample it, and replace the estimates above. The
+    current `#16161a` in `func-mobile/app.json` and `src/ui/theme.ts` is a build
+    placeholder, not the identity colour, and is replaced in the separate design pass
+    (out of scope for the verification pass per the founder's instruction).
+  - **(b) A promoter-created event is the same `PoolInvite` object, not a separate type.**
+    Phoenix: *"pretty much the same but make it make sense of course as there are different
+    specifications and it has to have validation and security around it."* So: one
+    `PoolInvite` type, discriminated by the existing `createdByAccountType: 'business'`,
+    extended with the business-specific fields the spec pass defines (e.g. venue link,
+    required start time, promoter-style capacity) — with **creation gated to verified
+    business accounts and server-side validation of every business field**. Not decided
+    here: the exact field list. That is Tier 1 (Pool/Events) work and gets its own entry
+    when specced.
+  - **(c) Trust & safety is a whole-app requirement, not a feature.** Phoenix: *"the entire
+    app needs to be extremely secure and trustworthy to prevent scams or creeps."* Every
+    social or business surface (invites, requests, pre-accept messages, DMs, business
+    accounts, promoter events, live pins) is designed with scam- and predator-resistance
+    as a first-order constraint alongside the existing Tier 0 items (18+ with government-ID
+    verification; women-first safety review of every social feature).
+- **Tier 0 wording applied (c):** *"Safe by construction. Every feature that connects
+  people is built to resist scams and predatory behaviour, and ships only after that
+  review."* Proposed in this entry, confirmed by Phoenix in the same session, applied to
+  `team/func-identity.md` with the v4.0 bump.
+- **Cost accepted knowingly:** (b) keeps one type, which means business-only fields are
+  optional on personal invites and must be validated by account type rather than by the
+  type system alone. The alternative (a separate `PromoterEvent` type) was rejected by the
+  founder in favour of "pretty much the same".

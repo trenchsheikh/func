@@ -13,6 +13,19 @@ or change it. Newest first.
 
 ---
 
+## 🟢 Trust & safety is a whole-app requirement; promoter events extend PoolInvite; colour pinned to the chrome icon
+
+- **Issued:** 2026-08-22
+- **Order:** *"The entire app needs to be extremely secure and trustworthy to prevent
+  scams or creeps."* Design every people-connecting surface with scam- and
+  predator-resistance as a first-order constraint. Promoter/business-created events are
+  the **same `PoolInvite` object** with business-specific fields, creation gated to
+  verified business accounts, with validation and security around it. The chrome/black
+  identity background is **the chrome `func.` icon render Phoenix supplied** (true black
+  surround; exact tile hex pending the source file). Details and the Tier 0 question in
+  Decision 016.
+- **Supersedes:** nothing — additive to the entry below.
+
 ## 🟢 Pool restored — `func-mobile/` is the active build; Mapbox over MapLibre
 
 - **Issued:** 2026-08-21

@@ -22,7 +22,7 @@ happen before it lands.
 ### Tier 0 — Constitution
 *If this changes, it is a different product.*
 
-*Updated 2026-08-07 — v3.0. See Decision 012 for what changed and why.*
+*Updated 2026-08-22 — v4.0. See Decision 016 (safe by construction, additive) and Decision 012 (the v3.0 reset) for what changed and why.*
 
 - **The line:** "Func is just a bridge between you and the opportunities of the
   night." Func shows you what is on and gets you in. It does not host the
@@ -38,6 +38,10 @@ happen before it lands.
   map without having turned it on for tonight.
 - **18+ with government-ID verification**; women-first safety review of every social
   feature before it ships.
+- **Safe by construction.** Every feature that connects people is built to resist scams
+  and predatory behaviour, and ships only after that review. *(Added 2026-08-22,
+  Decision 016 — founder: "the entire app needs to be extremely secure and trustworthy
+  to prevent scams or creeps.")*
 - **A night out is the success metric,** not time-in-app.
 - **B2B2C: free for users, venues pay — but Func must work without any venue.**
   Promotion and connection only; no payments, no ticketing (Decision 013).
