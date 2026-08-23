@@ -91,6 +91,17 @@ test('a friend past their next local noon since DTF is no longer disclosed, even
   assert.equal(disclosure.kind, 'none');
 });
 
+test('a stale fix from before the current presence session is not disclosed, even while presence is live', () => {
+  const since = new Date('2026-08-23T18:00:00.000Z').toISOString();
+  const staleFixTimestamp = new Date('2026-08-23T08:00:00.000Z').toISOString(); // before `since`
+  const now = new Date('2026-08-23T20:00:00.000Z'); // after since, before the next local noon
+  const subject = user('subject', 'dtf');
+  subject.personalProfile.liveStatusSince = since;
+  subject.personalProfile.lastKnownLocation = { lat: 37.77, lng: -122.42, timestamp: staleFixTimestamp };
+  const disclosure = personDisclosure(context('friend', now), subject, []);
+  assert.equal(disclosure.kind, 'none');
+});
+
 test('an unverified business never discloses a business pin', () => {
   const wren = businessUser('wren', 'The Velvet Lantern', 'unverified');
   const disclosure = personDisclosure(context('none'), wren, [venue('The Velvet Lantern')]);

@@ -1,4 +1,4 @@
-import { isPresenceLive } from './liveStatus';
+import { isPresenceLive, parseIso } from './liveStatus';
 import type { FuncUser, LatLng, LiveStatus, PersonalProfile, Venue } from './types';
 
 export type Relationship = 'self' | 'friend' | 'mutual' | 'none' | 'unknown';
@@ -24,14 +24,22 @@ export type PersonDisclosure =
   | { kind: 'business'; userId: string; venueId: string; location: LatLng }
   | { kind: 'none' };
 
-/** lastKnownLocation present, lat/lng finite and within +-90/+-180, timestamp parses and is <= now. */
+/**
+ * lastKnownLocation present, lat/lng finite and within +-90/+-180, timestamp
+ * strictly parses, and since <= fixTimestamp <= now -- a fix from before the
+ * current presence session (i.e. predating `liveStatusSince`) is stale and
+ * must not be disclosed, even though presence itself is still live.
+ */
 export function validFix(p: PersonalProfile, now: Date): LatLng | null {
   const fix = p.lastKnownLocation;
   if (!fix) return null;
   if (!Number.isFinite(fix.lat) || Math.abs(fix.lat) > 90) return null;
   if (!Number.isFinite(fix.lng) || Math.abs(fix.lng) > 180) return null;
-  const ts = new Date(fix.timestamp);
-  if (Number.isNaN(ts.getTime()) || ts.getTime() > now.getTime()) return null;
+  const ts = parseIso(fix.timestamp);
+  if (!ts) return null;
+  const since = parseIso(p.liveStatusSince);
+  if (!since) return null;
+  if (ts.getTime() < since.getTime() || ts.getTime() > now.getTime()) return null;
   return { lat: fix.lat, lng: fix.lng };
 }
 
