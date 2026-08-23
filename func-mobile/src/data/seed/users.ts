@@ -1,4 +1,4 @@
-import type { FuncUser, Group } from '@/domain/types';
+import type { FuncUser, Group, VerificationStatus } from '@/domain/types';
 
 export const ME = 'u_maya';
 
@@ -13,14 +13,14 @@ type UserSeed = {
   /** hours ago for the last known location fix; undefined = no fix at all */
   agoHours?: number;
   at?: { lat: number; lng: number };
-  business?: { venueName: string; active?: boolean };
+  business?: { venueName: string; active?: boolean; verification: VerificationStatus };
   /** Other users in this person's party tonight. */
   party?: string[];
 };
 
 const SEEDS: UserSeed[] = [
   // the current user — personal by default, owns a bar as a secondary profile
-  { id: ME, handle: 'maya', name: 'Maya', color: '#c084fc', status: 'casual', premium: false, agoHours: 0.2, at: { lat: 37.7601, lng: -122.4201 }, business: { venueName: 'The Velvet Lantern' }, party: ['u_ines'] },
+  { id: ME, handle: 'maya', name: 'Maya', color: '#c084fc', status: 'casual', premium: false, agoHours: 0.2, at: { lat: 37.7601, lng: -122.4201 }, business: { venueName: 'The Velvet Lantern', verification: 'unverified' }, party: ['u_ines'] },
 
   { id: 'u_theo', handle: 'theo.v', name: 'Theo', color: '#f97316', status: 'dtf', premium: true, agoHours: 0.1, at: { lat: 37.7623, lng: -122.4247 }, party: ['u_priya'] },
   { id: 'u_priya', handle: 'priyaaa', name: 'Priya', color: '#ec4899', status: 'dtf', premium: false, agoHours: 0.3, at: { lat: 37.7770, lng: -122.4075 } },
@@ -29,13 +29,14 @@ const SEEDS: UserSeed[] = [
   { id: 'u_dev', handle: 'dev_patel', name: 'Dev', color: '#fbbf24', status: 'off', premium: false, agoHours: 3, at: { lat: 37.8003, lng: -122.4091 } },
   { id: 'u_sasha', handle: 'sashh', name: 'Sasha', color: '#f472b6', status: 'casual', premium: false, agoHours: 1.2, at: { lat: 37.8019, lng: -122.4360 }, party: ['u_dev'] },
   { id: 'u_jun', handle: 'jun.k', name: 'Jun', color: '#2dd4bf', status: 'off', premium: false, agoHours: 20, at: { lat: 37.7927, lng: -122.4165 } },
-  { id: 'u_amara', handle: 'amara', name: 'Amara', color: '#fb7185', status: 'dtf', premium: false, agoHours: 0.4, at: { lat: 37.7580, lng: -122.3892 } },
+  // Kai and Amara sit together at Audiowave so Maya's mutual-only aggregate glow is demonstrable.
+  { id: 'u_amara', handle: 'amara', name: 'Amara', color: '#fb7185', status: 'dtf', premium: false, agoHours: 0.4, at: { lat: 37.7718, lng: -122.4128 } },
   // 60h old fix — beyond the 48h window, must be hidden from the map
   { id: 'u_felix', handle: 'felixx', name: 'Felix', color: '#94a3b8', status: 'off', premium: false, agoHours: 60, at: { lat: 37.7850, lng: -122.4300 } },
   { id: 'u_rosa', handle: 'rosa.m', name: 'Rosa', color: '#e879f9', status: 'casual', premium: true, agoHours: 0.8, at: { lat: 37.7849, lng: -122.4172 }, party: ['u_felix'] },
-  { id: 'u_kai', handle: 'kai', name: 'Kai', color: '#34d399', status: 'dtf', premium: true, agoHours: 0.2, at: { lat: 37.7728, lng: -122.4118 } },
+  { id: 'u_kai', handle: 'kai', name: 'Kai', color: '#34d399', status: 'dtf', premium: true, agoHours: 0.2, at: { lat: 37.7717, lng: -122.4120 } },
   // business account, currently switched into it — renders as a silver ball at the venue
-  { id: 'u_wren', handle: 'audiowave', name: 'Wren', color: '#cbd5e1', status: 'off', premium: false, business: { venueName: 'Audiowave', active: true } },
+  { id: 'u_wren', handle: 'audiowave', name: 'Wren', color: '#cbd5e1', status: 'off', premium: false, business: { venueName: 'Audiowave', active: true, verification: 'verified' } },
   { id: 'u_ines', handle: 'ines', name: 'Inès', color: '#fde047', status: 'off', premium: true, agoHours: 5, at: { lat: 37.7690, lng: -122.4470 } },
 ];
 
@@ -49,6 +50,7 @@ export function buildUsers(now: Date): { users: FuncUser[]; groups: Group[] } {
       photo: `mono:${s.color}`,
       liveStatus: s.status,
       premium: s.premium,
+      ...(s.status !== 'off' ? { liveStatusSince: now.toISOString() } : {}),
       ...(s.at && s.agoHours != null
         ? {
             lastKnownLocation: {
@@ -59,7 +61,18 @@ export function buildUsers(now: Date): { users: FuncUser[]; groups: Group[] } {
           }
         : {}),
     },
-    ...(s.business ? { businessProfile: { venueName: s.business.venueName } } : {}),
+    ...(s.business
+      ? {
+          businessProfile: {
+            venueName: s.business.venueName,
+            verification: {
+              status: s.business.verification,
+              authority: 'simulated' as const,
+              ...(s.business.verification === 'verified' ? { verifiedAt: now.toISOString() } : {}),
+            },
+          },
+        }
+      : {}),
   }));
 
   // Every user leads exactly one party (group). Others may be along for the night.

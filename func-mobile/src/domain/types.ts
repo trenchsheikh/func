@@ -26,12 +26,24 @@ export interface PersonalProfile {
   displayName: string;
   photo: string;
   liveStatus: LiveStatus;
+  /** ISO. When the current liveStatus was set. Presence expires at the next local noon after this. Missing/invalid/future ⇒ not live. */
+  liveStatusSince?: string;
   lastKnownLocation?: { lat: number; lng: number; timestamp: string };
   premium: boolean;
 }
 
+export type VerificationStatus = 'unverified' | 'pending' | 'verified';
+
+export interface BusinessVerification {
+  status: VerificationStatus;
+  /** 'simulated' in this prototype. Production requires 'server'. */
+  authority: 'simulated' | 'server';
+  verifiedAt?: string;
+}
+
 export interface BusinessProfile {
   venueName: string;
+  verification: BusinessVerification;
   // no liveStatus field at all — business accounts never have live status
 }
 
@@ -44,6 +56,8 @@ export interface PoolInvite {
   hostGroupId: string;
   description: string;
   location: { lat: number; lng: number };
+  /** Present ⇒ anchored to a public commercial venue; exact location = that venue's. Required when access is public. */
+  venueId?: string;
   capacity: { mode: 'capped' | 'uncapped'; max?: number };
   access: { mode: 'private' | 'public' };
   requests: PoolRequest[];
