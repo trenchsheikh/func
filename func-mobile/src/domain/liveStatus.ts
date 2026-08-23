@@ -1,67 +1,28 @@
-import type { FuncUser, LiveStatus, Venue } from './types';
+import type { FuncUser, PersonalProfile } from './types';
 
-/** Pins for `off` users are hidden entirely once the last fix is this old. */
-export const OFF_PIN_TTL_HOURS = 48;
-
-export function hoursSince(iso: string, now: Date): number {
-  return Math.max(0, (now.getTime() - new Date(iso).getTime()) / 3_600_000);
+export function nextLocalNoon(from: Date): Date {
+  const noon = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 12, 0, 0, 0);
+  if (from.getTime() >= noon.getTime()) {
+    noon.setDate(noon.getDate() + 1);
+  }
+  return noon;
 }
 
-/** What the map should draw for a user, or null if nothing. */
-export type LivePin =
-  | {
-      kind: 'personal';
-      userId: string;
-      status: LiveStatus;
-      premium: boolean;
-      location: { lat: number; lng: number };
-      /** Whole hours since the last known location (meaningful for `off`). */
-      elapsedHours: number;
-    }
-  | {
-      kind: 'business';
-      userId: string;
-      venueName: string;
-      location: { lat: number; lng: number };
-    };
+/** Strict canonical ISO-8601 UTC parsing: the parsed value must re-serialize to exactly the input string. Rejects any valid-but-non-canonical representation of the same instant. */
+export function parseIso(iso: string | undefined): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString() === iso ? d : null;
+}
 
-/**
- * Resolve a user to a map pin.
- *
- * - Business accounts never have live status; they render as a plain silver
- *   disco ball at their venue (resolved by venue name — BusinessProfile's
- *   locked shape carries no coordinates).
- * - Personal accounts need a last known location; `off` pins expire after 48h.
- */
-export function livePinFor(
-  user: FuncUser,
-  venues: readonly Venue[],
-  now: Date,
-): LivePin | null {
-  if (user.activeProfile === 'business') {
-    const biz = user.businessProfile;
-    if (!biz) return null;
-    const venue = venues.find((v) => v.name === biz.venueName);
-    if (!venue) return null;
-    return {
-      kind: 'business',
-      userId: user.id,
-      venueName: biz.venueName,
-      location: venue.location,
-    };
-  }
-  const p = user.personalProfile;
-  if (!p.lastKnownLocation) return null;
-  const elapsed = hoursSince(p.lastKnownLocation.timestamp, now);
-  if (elapsed >= OFF_PIN_TTL_HOURS) return null;
-  return {
-    kind: 'personal',
-    userId: user.id,
-    status: p.liveStatus,
-    premium: p.premium,
-    location: { lat: p.lastKnownLocation.lat, lng: p.lastKnownLocation.lng },
-    elapsedHours: Math.floor(elapsed),
-  };
+/** true iff liveStatus !== 'off' && since parses && since <= now && now < nextLocalNoon(since). */
+export function isPresenceLive(p: PersonalProfile, now: Date): boolean {
+  if (p.liveStatus === 'off') return false;
+  const since = parseIso(p.liveStatusSince);
+  if (!since) return false;
+  if (since.getTime() > now.getTime()) return false;
+  return now.getTime() < nextLocalNoon(since).getTime();
 }
 
 /** Live status is a personal-profile concept only. */
