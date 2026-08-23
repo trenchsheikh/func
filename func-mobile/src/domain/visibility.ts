@@ -1,5 +1,5 @@
 import { isPresenceLive, parseIso } from './liveStatus';
-import type { FuncUser, LatLng, LiveStatus, PersonalProfile, Venue } from './types';
+import type { FuncUser, LatLng, LiveStatus, PersonalProfile, PoolInvite, Venue } from './types';
 
 export type Relationship = 'self' | 'friend' | 'mutual' | 'none' | 'unknown';
 
@@ -110,4 +110,58 @@ export function venueGlow(viewer: ViewerContext, users: readonly FuncUser[], ven
     }
   }
   return glowing;
+}
+
+export type ViewerInviteRelation = 'host' | 'attending' | 'requested' | 'denied' | 'none';
+
+/** An invite's location as the viewer may see it. Only 'exact' carries a coordinate. */
+export type InviteLocationDisclosure =
+  | { kind: 'exact'; location: LatLng; venueId?: string }
+  | { kind: 'area'; areaLabel: string }
+  | { kind: 'hidden' };
+
+function validLocation(loc: LatLng | undefined): LatLng | null {
+  if (!loc) return null;
+  if (!Number.isFinite(loc.lat) || Math.abs(loc.lat) > 90) return null;
+  if (!Number.isFinite(loc.lng) || Math.abs(loc.lng) > 180) return null;
+  return loc;
+}
+
+/** Nearest venue's area label within AREA_RADIUS_M, or 'Nearby' if none qualify. */
+export function areaLabelFor(point: LatLng, venues: readonly Venue[]): string {
+  let nearest: { area: string; distance: number } | null = null;
+  for (const v of venues) {
+    const d = distanceMetres(point, v.location);
+    if (d <= AREA_RADIUS_M && (!nearest || d < nearest.distance)) nearest = { area: v.area, distance: d };
+  }
+  return nearest?.area ?? 'Nearby';
+}
+
+/**
+ * An invite's location as the viewer may disclose it. Venue-anchored invites
+ * (D4) resolve to the venue's coordinate for everyone. Un-anchored public
+ * invites are hidden (D5) rather than leaking a private coordinate. Private
+ * invites disclose the exact stored coordinate only to the host/attendees;
+ * everyone else gets an area label, never a coordinate. `relation` is
+ * supplied by the caller (see `pool.ts`'s `relationTo`) rather than
+ * recomputed here, so this stays the single source of truth for that logic.
+ */
+export function inviteDisclosure(
+  viewer: ViewerContext,
+  invite: PoolInvite,
+  host: FuncUser | undefined,
+  venues: readonly Venue[],
+  relation: ViewerInviteRelation,
+): InviteLocationDisclosure {
+  const loc = validLocation(invite.location);
+  if (!loc) return { kind: 'hidden' };
+  if (invite.createdByAccountType === 'business' && !(host && isVerifiedBusiness(host))) return { kind: 'hidden' };
+  if (invite.venueId) {
+    const venue = venues.find((v) => v.id === invite.venueId);
+    if (!venue) return { kind: 'hidden' };
+    return { kind: 'exact', location: venue.location, venueId: venue.id };
+  }
+  if (invite.access.mode === 'public') return { kind: 'hidden' };
+  if (relation === 'host' || relation === 'attending') return { kind: 'exact', location: loc };
+  return { kind: 'area', areaLabel: areaLabelFor(loc, venues) };
 }

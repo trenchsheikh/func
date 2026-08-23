@@ -1,4 +1,4 @@
-import type { PoolInvite, PoolRequest } from './types';
+import type { FuncUser, PoolInvite, PoolRequest } from './types';
 
 export function acceptedRequests(invite: PoolInvite): PoolRequest[] {
   return invite.requests.filter((r) => r.status === 'accepted');
@@ -74,4 +74,11 @@ export function capacityLabel(invite: PoolInvite): string {
   return invite.capacity.mode === 'capped' && invite.capacity.max != null
     ? `Max ${invite.capacity.max}`
     : 'No cap';
+}
+
+/** Personal accounts may always post; business accounts must be verified first. */
+export function canCreateInviteAs(user: FuncUser): { ok: true } | { ok: false; reason: string } {
+  if (user.activeProfile === 'personal') return { ok: true };
+  if (user.businessProfile?.verification.status === 'verified') return { ok: true };
+  return { ok: false, reason: 'Business accounts must be verified before posting.' };
 }
