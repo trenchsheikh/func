@@ -4,6 +4,16 @@ React Native (Expo SDK 57, TypeScript) prototype of **func**: a map-first
 night-out app. Fully mocked, in-memory data — no backend, no auth, no
 persistence. Every launch is the same pristine demo state.
 
+## ⚠️ Production boundary
+
+This remains a simulated prototype. Nothing in this design is production
+security. There are no real users and no real locations: identity is a
+seed constant, relationships and business verification are seeded
+simulations, and every check runs on the client. The build must not be
+used with real people or real positions until backend authentication,
+server-side redaction, government-ID and business verification, reporting,
+blocking, moderation, rate limits, and auditability exist.
+
 ## Run it
 
 ```bash
