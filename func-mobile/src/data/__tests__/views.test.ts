@@ -24,11 +24,23 @@ test('an unrelated viewer sees only whitelisted invite fields, never an exact co
     assert.equal('createdByAccountType' in card, false);
   }
 
-  // inv_dinner: private, hosted by Luca, Maya neither host nor attendee/requester.
+  // inv_dinner: private but venue-anchored (v_kaimuki), hosted by Luca, Maya
+  // neither host nor attendee/requester. Decision 017 §6.4 rule 3 / §7.8:
+  // a venue-anchored invite resolves exact to the known public venue for
+  // every audience, so this stays exact even though Maya is unrelated.
   const dinner = view.invites.find((c) => c.id === 'inv_dinner');
   assert.ok(dinner);
   assert.equal(dinner?.viewer.relation, 'none');
-  assert.notEqual(dinner?.where.kind, 'exact');
+  assert.equal(dinner?.where.kind, 'exact');
+
+  // inv_afters: private, unanchored (no venueId), hosted by Maya. Viewed from
+  // Jun -- who has no tie to Maya or this invite at all -- an unanchored
+  // private invite must stay area-only for an unrelated viewer.
+  const juneView = viewFor({ ...buildSeed(NOW), currentUserId: 'u_jun' }, NOW);
+  const afters = juneView.invites.find((c) => c.id === 'inv_afters');
+  assert.ok(afters);
+  assert.equal(afters?.viewer.relation, 'none');
+  assert.notEqual(afters?.where.kind, 'exact');
 });
 
 test('people is sparse and justified -- never every seeded user', () => {

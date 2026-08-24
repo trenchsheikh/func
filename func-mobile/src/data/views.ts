@@ -1,6 +1,6 @@
 import type { AccountType, ChatThread, FuncUser, Group, LatLng, LiveStatus, PoolInvite, VerificationStatus } from '@/domain/types';
 import type { InviteLocationDisclosure, ViewerContext, ViewerInviteRelation, PersonDisclosure } from '@/domain/visibility';
-import { areaLabelFor, inviteDisclosure, isVerifiedBusiness, personDisclosure, venueGlow } from '@/domain/visibility';
+import { inviteDisclosure, isVerifiedBusiness, personDisclosure, venueGlow } from '@/domain/visibility';
 import { attendingPartySize, pendingRequests, relationTo, seatsLeft as inviteSeatsLeft } from '@/domain/pool';
 import { canUseLiveStatus, isPresenceLive } from '@/domain/liveStatus';
 import type { Snapshot } from './repository';
@@ -206,30 +206,6 @@ function partyOf(
   };
 }
 
-/**
- * inviteDisclosure resolves venue-anchored invites to the venue's coordinate
- * for everyone (D4) -- correct for public events, but that same short-circuit
- * would also expose a private, venue-anchored invite's exact coordinate to a
- * viewer with no relation to it. Private invites disclose an exact coordinate
- * only to their host/attendees (see visibility.ts's own docstring for the
- * non-anchored case); this closes the gap for the anchored case without
- * touching the single-source-of-truth policy function itself.
- */
-function inviteWhere(
-  ctx: ViewerContext,
-  invite: PoolInvite,
-  host: FuncUser | undefined,
-  venues: Snapshot['venues'],
-  relation: ViewerInviteRelation,
-): InviteLocationDisclosure {
-  const where = inviteDisclosure(ctx, invite, host, venues, relation);
-  const partyToIt = relation === 'host' || relation === 'attending';
-  if (invite.access.mode === 'private' && !partyToIt && where.kind === 'exact') {
-    return { kind: 'area', areaLabel: areaLabelFor(where.location, venues) };
-  }
-  return where;
-}
-
 function buildInviteCard(
   s: Snapshot,
   invite: PoolInvite,
@@ -248,7 +224,7 @@ function buildInviteCard(
     goingCount: goingCount(s, invite),
     hostedByVerifiedBusiness: invite.createdByAccountType === 'business',
     host: hostPersonSummary(invite, host),
-    where: inviteWhere(ctx, invite, host, s.venues, relation),
+    where: inviteDisclosure(ctx, invite, host, s.venues, relation),
     viewer: { relation },
   };
 }
