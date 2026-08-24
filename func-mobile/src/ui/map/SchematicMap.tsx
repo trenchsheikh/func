@@ -2,9 +2,22 @@ import React, { forwardRef, useImperativeHandle, useMemo, useState } from 'react
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import type { LatLng } from '@/domain/types';
 import { colors } from '../theme';
+import { LocateIcon } from '../components/Icons';
 import type { MapHandle } from './MapboxGlobe';
 import type { MapPin } from './content';
-import { InvitePinView, LivePinView, PIN_SIZE, VenuePinView } from './Pins';
+import { accessibilityLabelForGroup, groupPins } from './grouping';
+import { LOCAL_ZOOM } from './mapConfig';
+import {
+  BusinessClusterView,
+  BusinessPinView,
+  InviteClusterView,
+  InvitePinView,
+  PersonClusterView,
+  PersonPinView,
+  PIN_SIZE,
+  VenueClusterView,
+  VenuePinView,
+} from './Pins';
 
 type Props = {
   pins: MapPin[];
@@ -48,6 +61,10 @@ export const SchematicMap = forwardRef<MapHandle, Props>(function SchematicMap(
     return { minLat: minLat - padLat, maxLat: maxLat + padLat, minLng: minLng - padLng, maxLng: maxLng + padLng };
   }, [pins, initialCenter]);
 
+  // No pinch-zoom exists in this flat fallback, so grouping uses a fixed
+  // "city" density rather than a live camera zoom.
+  const groups = useMemo(() => groupPins(pins, LOCAL_ZOOM), [pins]);
+
   const project = (ll: LatLng) => ({
     x: ((ll.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * size.w,
     y: (1 - (ll.lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * size.h,
@@ -75,27 +92,55 @@ export const SchematicMap = forwardRef<MapHandle, Props>(function SchematicMap(
         ))}
       </View>
       {size.w > 0 && placed ? (
-        <View pointerEvents="none" style={{ position: 'absolute', left: project(placed).x - 12, top: project(placed).y - 24 }}>
-          <Text style={{ fontSize: 24 }}>📍</Text>
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ position: 'absolute', left: project(placed).x - 12, top: project(placed).y - 24 }}
+        >
+          <LocateIcon size={24} color={colors.highlightSoft} />
         </View>
       ) : null}
       {size.w > 0 &&
-        pins.map((pin) => {
-          const { x, y } = project(pin.location);
+        groups.map((group) => {
+          const { x, y } = project(group.location);
+          const pin = group.pins.length === 1 ? group.pins[0] : null;
+          const interactive = pin != null;
           return (
-            <Pressable
-              key={pin.id}
-              onPress={() => onSelect(pin)}
+            <View
+              key={group.id}
+              pointerEvents={interactive ? 'auto' : 'none'}
+              accessible
+              accessibilityRole={interactive ? 'button' : undefined}
+              accessibilityLabel={accessibilityLabelForGroup(group)}
+              accessibilityHint={interactive ? 'Shows a preview' : undefined}
               style={{ position: 'absolute', left: x - PIN_SIZE / 2, top: y - PIN_SIZE / 2 }}
             >
-              {pin.kind === 'venue' ? (
-                <VenuePinView venue={pin.venue} selected={selectedId === pin.id} />
-              ) : pin.kind === 'invite' ? (
-                <InvitePinView invite={pin.invite} selected={selectedId === pin.id} />
+              {pin ? (
+                <Pressable onPress={() => onSelect(pin)} hitSlop={6}>
+                  {pin.kind === 'venue' ? (
+                    <VenuePinView venue={pin.venue} glow={pin.glow} selected={selectedId === pin.id} />
+                  ) : pin.kind === 'invite' ? (
+                    <InvitePinView invite={pin.invite} selected={selectedId === pin.id} />
+                  ) : pin.kind === 'person' ? (
+                    <PersonPinView person={pin.person} disclosure={pin.disclosure} selected={selectedId === pin.id} />
+                  ) : (
+                    <BusinessPinView selected={selectedId === pin.id} />
+                  )}
+                </Pressable>
+              ) : group.kind === 'venue' ? (
+                <VenueClusterView count={group.pins.length} glow={group.pins.some((p) => p.glow)} />
+              ) : group.kind === 'invite' ? (
+                <InviteClusterView count={group.pins.length} />
+              ) : group.kind === 'business' ? (
+                <BusinessClusterView />
               ) : (
-                <LivePinView live={pin.live} selected={selectedId === pin.id} />
+                <PersonClusterView
+                  people={group.pins.map((p) => p.person)}
+                  hasHeartbeat={group.pins.some((p) => p.disclosure.status === 'dtf')}
+                />
               )}
-            </Pressable>
+            </View>
           );
         })}
       <View pointerEvents="none" style={styles.banner}>
@@ -111,20 +156,20 @@ export const SchematicMap = forwardRef<MapHandle, Props>(function SchematicMap(
 });
 
 const styles = StyleSheet.create({
-  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#111115' },
+  fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.mapLand },
   grid: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  gridLine: { position: 'absolute', backgroundColor: '#1f1f26' },
+  gridLine: { position: 'absolute', backgroundColor: colors.mapGrid },
   banner: {
     position: 'absolute',
     bottom: 12,
     left: 12,
     right: 12,
-    backgroundColor: 'rgba(31,31,37,0.92)',
+    backgroundColor: colors.mapOverlay,
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSubtle,
   },
-  bannerTitle: { color: colors.casual, fontSize: 12, fontWeight: '700' },
-  bannerBody: { color: colors.muted, fontSize: 11, marginTop: 2 },
+  bannerTitle: { color: colors.mapText, fontSize: 12, fontWeight: '700' },
+  bannerBody: { color: colors.mapTextMuted, fontSize: 11, marginTop: 2 },
 });
