@@ -1,18 +1,20 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useRepository, useSnapshot } from '@/data/DataContext';
-import { groupById, groupLead, hostDisplayName, myGroup, partySizeOf } from '@/data/selectors';
-import { accessLabel, capacityLabel, isFull, relationTo, seatsLeft, seatsTaken } from '@/domain/pool';
-import type { PoolInvite } from '@/domain/types';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { useCommands, useView } from '@/data/DataContext';
+import type { InviteCardView, PersonSummary } from '@/data/views';
+import { distanceKm, formatDistanceKm } from '@/domain/geo';
+import { accessLabel, capacityLabel } from '@/domain/pool';
+import { viewerLocation } from '@/ui/viewerGeo';
 import { colors, radius, space } from '../theme';
 import { whenLabel } from '../time';
-import { AvatarStack } from './Avatar';
-import { Body, Button, Pill, Row, Small } from './Primitives';
+import { AvatarStack, avatarUserOf } from './Avatar';
+import { InviteCoverIcon, type InviteCoverVariant } from './Icons';
+import { Body, Button, GlassCard, Pill, Row, Small } from './Primitives';
 
 /** Deterministic "cover image" stand-in: a colour block + glyph per invite. */
 const COVERS = ['#3b2f5c', '#4a2c2c', '#23414a', '#4a3a1e', '#2c4a36', '#3f2c4a', '#2c3a4a'];
-const GLYPHS = ['🪩', '🌃', '🎤', '🍸', '🌅', '🎧', '🔥', '🍕'];
+const COVER_VARIANTS: InviteCoverVariant[] = ['discoball', 'city', 'mic', 'cocktail', 'sunrise', 'headphones', 'spark', 'pizza'];
 
 function hash(s: string): number {
   let h = 0;
@@ -20,68 +22,99 @@ function hash(s: string): number {
   return h;
 }
 
-export function InviteCover({ invite, size = 64, radiusOverride }: { invite: PoolInvite; size?: number; radiusOverride?: number }) {
+function coverVisual(invite: { id: string }): { color: string; variant: InviteCoverVariant } {
   const h = hash(invite.id);
+  return { color: COVERS[h % COVERS.length]!, variant: COVER_VARIANTS[h % COVER_VARIANTS.length]! };
+}
+
+export function InviteCover({ invite, size = 64, radiusOverride }: { invite: { id: string }; size?: number; radiusOverride?: number }) {
+  const { color, variant } = coverVisual(invite);
   return (
     <View
       style={{
         width: size,
         height: size,
         borderRadius: radiusOverride ?? radius.md,
-        backgroundColor: COVERS[h % COVERS.length],
+        backgroundColor: color,
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      <Text style={{ fontSize: size * 0.45 }}>{GLYPHS[h % GLYPHS.length]}</Text>
+      <InviteCoverIcon variant={variant} size={size * 0.52} color={colors.highlightSoft} />
     </View>
   );
 }
 
-/** Who's going — attendee leads as an avatar stack with a count. */
-export function GoingStack({ invite }: { invite: PoolInvite }) {
-  const snap = useSnapshot();
-  const leads = invite.attendeeGroupIds.map((g) => groupLead(snap, g));
-  const people = seatsTaken(invite, partySizeOf(snap)) + partySizeOf(snap)(invite.hostGroupId);
+/**
+ * Edge-to-edge hero banner for InviteCard — its own section above the text,
+ * never behind or over it. Purely decorative (the description/host/timing
+ * text already carries the same information), so it's hidden from screen
+ * readers rather than announced as an unlabeled icon.
+ */
+function InviteCardBanner({ invite }: { invite: { id: string } }) {
+  const { color, variant } = coverVisual(invite);
+  return (
+    <View
+      style={[styles.banner, { backgroundColor: color }]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <InviteCoverIcon variant={variant} size={40} color={colors.highlightSoft} />
+    </View>
+  );
+}
+
+/**
+ * Who's going — a count always; an avatar stack only when the caller has
+ * attendee identities to show (host/attending detail views). Card-level
+ * browsing never gets attendee identities, only the count `viewFor` disclosed.
+ */
+export function GoingStack({ invite, leads }: { invite: InviteCardView; leads?: readonly PersonSummary[] }) {
   return (
     <Row gap={6}>
-      <AvatarStack users={leads} size={22} />
-      <Small>{people} going</Small>
+      {leads && leads.length ? <AvatarStack users={leads.map(avatarUserOf)} size={22} /> : null}
+      <Small>{invite.goingCount} going</Small>
     </Row>
   );
 }
 
-export function InviteMeta({ invite }: { invite: PoolInvite }) {
-  const snap = useSnapshot();
-  const left = seatsLeft(invite, partySizeOf(snap));
+export function InviteMeta({ invite }: { invite: InviteCardView }) {
+  const left = invite.seatsLeft;
   return (
     <Row gap={6} style={{ flexWrap: 'wrap' }}>
       <Pill label={accessLabel(invite)} color={invite.access.mode === 'private' ? colors.bar : colors.chrome} />
       <Pill label={left == null ? capacityLabel(invite) : left === 0 ? 'Full' : `${left} left · ${capacityLabel(invite)}`} />
-      {invite.createdByAccountType === 'business' ? <Pill label="Venue" color={colors.club} /> : null}
+      {invite.hostedByVerifiedBusiness ? <Pill label="Venue" color={colors.club} /> : null}
     </Row>
   );
 }
 
-/** Partiful-style list card: cover, title, who's going. */
-export function InviteCard({ invite, onPress }: { invite: PoolInvite; onPress?: () => void }) {
-  const snap = useSnapshot();
+/**
+ * Information-first glass/chrome event card: edge-to-edge hero banner, then
+ * name → host/timing/distance → safe social proof → capacity/access → the
+ * existing open action. Used in Discover rows, the venue detail's nearby
+ * list, and the map's tap-to-preview card.
+ */
+export function InviteCard({ invite, onPress }: { invite: InviteCardView; onPress?: () => void }) {
+  const view = useView();
   const router = useRouter();
   const now = new Date();
+  const myLocation = viewerLocation(view);
+  const distance =
+    myLocation && invite.where.kind === 'exact' ? formatDistanceKm(distanceKm(myLocation, invite.where.location)) : null;
   return (
-    <View style={styles.card}>
-      <Row gap={space.md} style={{ alignItems: 'flex-start' }}>
-        <InviteCover invite={invite} />
-        <View style={{ flex: 1, gap: 6 }}>
-          <Body numberOfLines={2} style={{ fontWeight: '600' }}>{invite.description}</Body>
-          <Small>
-            by {hostDisplayName(snap, invite)}
-            {invite.startsAt ? ` · ${whenLabel(invite.startsAt, now)}` : ''}
-          </Small>
-          <GoingStack invite={invite} />
-          <InviteMeta invite={invite} />
-        </View>
-      </Row>
+    <GlassCard style={styles.card}>
+      <InviteCardBanner invite={invite} />
+      <View style={{ gap: 6 }}>
+        <Body numberOfLines={2} style={{ fontWeight: '600' }}>{invite.description}</Body>
+        <Small>
+          by {invite.host.displayName}
+          {invite.startsAt ? ` · ${whenLabel(invite.startsAt, now)}` : ''}
+          {distance ? ` · ${distance}` : ''}
+        </Small>
+        <GoingStack invite={invite} />
+        <InviteMeta invite={invite} />
+      </View>
       <Button
         small
         variant="secondary"
@@ -89,7 +122,7 @@ export function InviteCard({ invite, onPress }: { invite: PoolInvite; onPress?: 
         style={{ marginTop: space.md, alignSelf: 'flex-start' }}
         onPress={onPress ?? (() => router.push({ pathname: '/invite/[id]', params: { id: invite.id } }))}
       />
-    </View>
+    </GlassCard>
   );
 }
 
@@ -98,32 +131,32 @@ export function InviteCard({ invite, onPress }: { invite: PoolInvite; onPress?: 
  * cap). Private → creates a pending request, optionally with a message the
  * host sees before accepting.
  */
-export function InviteActions({ invite, compact }: { invite: PoolInvite; compact?: boolean }) {
-  const repo = useRepository();
-  const snap = useSnapshot();
+export function InviteActions({ invite, compact }: { invite: InviteCardView; compact?: boolean }) {
+  const commands = useCommands();
+  const view = useView();
   const router = useRouter();
-  const gid = myGroup(snap).id;
-  const rel = relationTo(invite, gid);
-  const [partySize, setPartySize] = useState(Math.max(1, groupById(snap, gid)?.memberUserIds.length ?? 1));
+  const rel = invite.viewer.relation;
+  const [partySize, setPartySize] = useState(Math.max(1, view.self.party.size));
   const [message, setMessage] = useState('');
   const [composing, setComposing] = useState(false);
-  const full = isFull(invite, partySizeOf(snap), partySize);
+  const full = invite.seatsLeft != null && invite.seatsLeft < partySize;
 
-  const openChat = () => router.push({ pathname: '/thread/[id]', params: { id: invite.groupChatId } });
-
+  // Note: the group chat's thread id lives only on `InviteDetailView.plan`
+  // (host/attending only), not on the card-level `InviteCardView` this
+  // component actually receives -- so "open the chat" is offered from the
+  // invite detail screen itself, not fabricated here from the invite id.
   if (rel === 'host') {
-    const pending = invite.requests.filter((r) => r.status === 'pending').length;
     return (
       <Row gap={space.sm}>
-        <Button small={compact} label="Group chat" variant="secondary" onPress={openChat} style={{ flex: 1 }} />
         {invite.access.mode === 'private' ? (
           <Button
             small={compact}
-            label={pending ? `Review ${pending}` : 'Requests'}
+            label="Requests"
             onPress={() => router.push({ pathname: '/review/[id]', params: { id: invite.id } })}
             style={{ flex: 1 }}
           />
         ) : null}
+        <Button small={compact} label="Open invite" variant="secondary" onPress={() => router.push({ pathname: '/invite/[id]', params: { id: invite.id } })} style={{ flex: 1 }} />
       </Row>
     );
   }
@@ -131,7 +164,7 @@ export function InviteActions({ invite, compact }: { invite: PoolInvite; compact
     return (
       <Row gap={space.sm}>
         <Pill label="You're in" color={colors.dtf} filled />
-        <Button small={compact} label="Group chat" variant="secondary" onPress={openChat} style={{ flex: 1 }} />
+        <Button small={compact} label="Open invite" variant="secondary" onPress={() => router.push({ pathname: '/invite/[id]', params: { id: invite.id } })} style={{ flex: 1 }} />
       </Row>
     );
   }
@@ -161,7 +194,7 @@ export function InviteActions({ invite, compact }: { invite: PoolInvite; compact
           variant="success"
           disabled={full}
           onPress={() => {
-            const r = repo.joinInvite(invite.id, partySize);
+            const r = commands.joinInvite(invite.id, partySize);
             if (!r.ok) Alert.alert('Could not join', r.reason);
           }}
         />
@@ -192,7 +225,7 @@ export function InviteActions({ invite, compact }: { invite: PoolInvite; compact
           label="Request to join"
           style={{ flex: 1 }}
           onPress={() => {
-            const r = repo.requestToJoin(invite.id, partySize, message);
+            const r = commands.requestToJoin(invite.id, partySize, message);
             if (!r.ok) Alert.alert('Could not request', r.reason);
           }}
         />
@@ -202,12 +235,14 @@ export function InviteActions({ invite, compact }: { invite: PoolInvite; compact
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: space.md,
+  card: { padding: space.md, overflow: 'hidden' },
+  banner: {
+    height: 96,
+    marginTop: -space.md,
+    marginHorizontal: -space.md,
+    marginBottom: space.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     backgroundColor: colors.surfaceRaised,

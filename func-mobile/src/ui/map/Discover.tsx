@@ -1,25 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSnapshot } from '@/data/DataContext';
-import type { LatLng, PoolInvite, Venue, VenueCategory } from '@/domain/types';
+import { useView } from '@/data/DataContext';
+import type { InviteCardView } from '@/data/views';
+import { distanceKm, formatDistanceKm } from '@/domain/geo';
+import type { LatLng, Venue, VenueCategory } from '@/domain/types';
+import { viewerLocation } from '@/ui/viewerGeo';
 import { BackIcon } from '../components/Icons';
 import { InviteCard } from '../components/InviteBits';
-import { Body, Eyebrow, Pill, Row, Small } from '../components/Primitives';
+import { Body, Eyebrow, GlassCard, Pill, Row, Small } from '../components/Primitives';
 import { categoryColor, categoryLabel, colors, priceSymbols, radius, space } from '../theme';
+import { browseSections, type Item } from './browse';
 
 type Props = {
   onClose: () => void;
-  onPickInvite: (inv: PoolInvite) => void;
+  onPickInvite: (inv: InviteCardView) => void;
   onPickVenue: (v: Venue) => void;
   onPickArea: (center: LatLng) => void;
 };
-
-type Item =
-  | { type: 'header'; key: string; label: string }
-  | { type: 'invite'; key: string; invite: PoolInvite }
-  | { type: 'venue'; key: string; venue: Venue }
-  | { type: 'area'; key: string; area: string; center: LatLng; count: number };
 
 const CATEGORY_WORDS: Record<string, VenueCategory> = {
   restaurant: 'restaurant', restaurants: 'restaurant', food: 'restaurant', dinner: 'restaurant', eat: 'restaurant',
@@ -34,20 +32,18 @@ const CATEGORY_WORDS: Record<string, VenueCategory> = {
  * plus free-text search across areas, categories, venues and invites.
  */
 export function Discover({ onClose, onPickInvite, onPickVenue, onPickArea }: Props) {
-  const snap = useSnapshot();
+  const view = useView();
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
 
   const items = useMemo<Item[]>(() => {
     const query = q.trim().toLowerCase();
-    const invites = [...snap.invites].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    const mapVenues = snap.venues.filter((v) => v.category !== 'shop');
+    const invites = [...view.invites].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const mapVenues = view.venues.filter((v) => v.category !== 'shop');
 
     if (!query) {
-      return [
-        { type: 'header', key: 'h-near', label: 'Nearby tonight' },
-        ...invites.map<Item>((invite) => ({ type: 'invite', key: invite.id, invite })),
-      ];
+      // Own location only — never another user's presence.
+      return browseSections(invites, mapVenues, viewerLocation(view), new Date());
     }
 
     const out: Item[] = [];
@@ -80,12 +76,12 @@ export function Discover({ onClose, onPickInvite, onPickVenue, onPickArea }: Pro
       out.push(...inviteHits.map<Item>((invite) => ({ type: 'invite', key: invite.id, invite })));
     }
     return out;
-  }, [q, snap]);
+  }, [q, view]);
 
   return (
     <View style={[styles.fill, { paddingTop: insets.top + 6 }]}>
       <Row gap={space.sm} style={{ paddingHorizontal: space.md }}>
-        <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Back to map">
+        <Pressable onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back to map">
           <BackIcon color={colors.text} />
         </Pressable>
         <TextInput
@@ -104,33 +100,55 @@ export function Discover({ onClose, onPickInvite, onPickVenue, onPickArea }: Pro
         keyExtractor={(i) => i.key}
         contentContainerStyle={{ padding: space.md, gap: space.sm, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={<Small style={{ textAlign: 'center', marginTop: 40 }}>Nothing for “{q}” — try an area like Mission, or “bars”.</Small>}
+        ListEmptyComponent={
+          <Small style={{ textAlign: 'center', marginTop: 40 }}>
+            {q ? `Nothing for “${q}” — try an area like Mission, or “bars”.` : 'Nothing nearby yet.'}
+          </Small>
+        }
         renderItem={({ item }) => {
           if (item.type === 'header') return <Eyebrow style={{ marginTop: space.sm }}>{item.label}</Eyebrow>;
           if (item.type === 'invite') return <InviteCard invite={item.invite} onPress={() => onPickInvite(item.invite)} />;
           if (item.type === 'area') {
             return (
-              <Pressable style={styles.rowCard} onPress={() => onPickArea(item.center)}>
+              <Pressable
+                style={styles.rowCard}
+                onPress={() => onPickArea(item.center)}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.area}, ${item.count} places`}
+              >
                 <Body style={{ fontWeight: '600' }}>{item.area}</Body>
                 <Small>{item.count} places</Small>
               </Pressable>
             );
           }
-          const v = item.venue;
-          return (
-            <Pressable style={styles.rowCard} onPress={() => onPickVenue(v)}>
-              <View style={[styles.dot, { backgroundColor: categoryColor(v.category) }]} />
-              <View style={{ flex: 1 }}>
-                <Body style={{ fontWeight: '600' }}>{v.name}</Body>
-                <Small>{v.area} · {priceSymbols(v.priceTier)}</Small>
-              </View>
-              <Pill label={categoryLabel(v.category)} color={categoryColor(v.category)} />
-            </Pressable>
-          );
+          return <VenueRow venue={item.venue} onPress={() => onPickVenue(item.venue)} />;
         }}
       />
       <Text style={styles.hint}>Price shows as $ tiers only — never a filter.</Text>
     </View>
+  );
+}
+
+/** Compact, scannable venue row — glass shell, category + area + price + distance from the viewer's own location. */
+function VenueRow({ venue, onPress }: { venue: Venue; onPress: () => void }) {
+  const view = useView();
+  const myLocation = viewerLocation(view);
+  const distance = myLocation ? formatDistanceKm(distanceKm(myLocation, venue.location)) : null;
+  const label = `${venue.name}, ${categoryLabel(venue.category)}${distance ? `, ${distance} away` : ''}`;
+  return (
+    <GlassCard onPress={onPress} style={styles.venueRow} accessibilityLabel={label}>
+      <Row gap={space.md}>
+        <View style={[styles.dot, { backgroundColor: categoryColor(venue.category) }]} />
+        <View style={{ flex: 1 }}>
+          <Body style={{ fontWeight: '600' }}>{venue.name}</Body>
+          <Small>
+            {venue.area} · {priceSymbols(venue.priceTier)}
+            {distance ? ` · ${distance}` : ''}
+          </Small>
+        </View>
+        <Pill label={categoryLabel(venue.category)} color={categoryColor(venue.category)} />
+      </Row>
+    </GlassCard>
   );
 }
 
@@ -158,5 +176,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
+  venueRow: { padding: space.md },
   hint: { color: colors.faint, fontSize: 11, textAlign: 'center', paddingBottom: 8 },
 });

@@ -1,11 +1,11 @@
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { Alert, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
-import { useRepository, useSnapshot } from '@/data/DataContext';
-import { currentUser } from '@/data/selectors';
+import { useCommands, useView } from '@/data/DataContext';
 import type { LatLng } from '@/domain/types';
 import { Body, Button, Card, Eyebrow, Row, Screen, Segmented, Small } from '@/ui/components/Primitives';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
+import { LocateIcon } from '@/ui/components/Icons';
 import { FuncMap } from '@/ui/map/FuncMap';
 import { DEFAULT_CENTER, hasMapboxToken } from '@/ui/map/mapConfig';
 import { colors, radius, space } from '@/ui/theme';
@@ -62,10 +62,10 @@ export default function CreateScreen() {
 }
 
 function EventForm() {
-  const repo = useRepository();
-  const snap = useSnapshot();
+  const commands = useCommands();
+  const view = useView();
   const router = useRouter();
-  const me = currentUser(snap);
+  const me = view.self;
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState<LatLng | null>(null);
   const [capMode, setCapMode] = useState<'capped' | 'uncapped'>('uncapped');
@@ -92,23 +92,24 @@ function EventForm() {
     if (capMode === 'capped' && (!Number.isFinite(maxN) || maxN < 1)) {
       return Alert.alert('Capacity', 'Enter a max of at least 1.');
     }
-    const inv = repo.createInvite({
+    const result = commands.createInvite({
       description,
       location,
       capacity: capMode === 'capped' ? { mode: 'capped', max: maxN } : { mode: 'uncapped' },
       access: { mode: access },
       ...(startsAt ? { startsAt } : {}),
     });
+    if (!result.ok) return Alert.alert('Could not post', result.reason);
     setDescription('');
     setLocation(null);
-    router.push({ pathname: '/invite/[id]', params: { id: inv.id } });
+    router.push({ pathname: '/invite/[id]', params: { id: result.inviteId } });
   };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={120}>
       <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
         {me.activeProfile === 'business' ? (
-          <Small style={{ color: colors.club }}>Posting as {me.businessProfile?.venueName} (business)</Small>
+          <Small style={{ color: colors.club }}>Posting as {me.business?.venueName} (business)</Small>
         ) : null}
 
         <Eyebrow>Description</Eyebrow>
@@ -139,7 +140,7 @@ function EventForm() {
             />
             {hasMapboxToken ? (
               <View pointerEvents="none" style={styles.crosshair}>
-                <Text style={{ fontSize: 28 }}>📍</Text>
+                <LocateIcon size={30} color={colors.highlightSoft} />
               </View>
             ) : null}
             <View style={styles.pickerActions}>
@@ -230,10 +231,10 @@ function EventForm() {
 }
 
 function StoryForm() {
-  const repo = useRepository();
-  const snap = useSnapshot();
+  const commands = useCommands();
+  const view = useView();
   const [text, setText] = useState('');
-  const mine = snap.stories.filter((s) => s.authorUserId === snap.currentUserId);
+  const mine = view.self.stories;
   return (
     <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
       <Eyebrow>Story</Eyebrow>
@@ -248,7 +249,7 @@ function StoryForm() {
       <Button
         label="Post story"
         onPress={() => {
-          const r = repo.postStory(text);
+          const r = commands.postStory(text);
           if (!r.ok) Alert.alert('Story', r.reason);
           else setText('');
         }}

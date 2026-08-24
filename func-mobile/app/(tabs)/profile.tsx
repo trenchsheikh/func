@@ -1,56 +1,64 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { useRepository, useSnapshot } from '@/data/DataContext';
-import { currentUser, myGroup } from '@/data/selectors';
-import { canUseLiveStatus } from '@/domain/liveStatus';
+import { useCommands, useView } from '@/data/DataContext';
 import type { AccountType, LiveStatus } from '@/domain/types';
-import { Avatar } from '@/ui/components/Avatar';
+import { Avatar, avatarUserOf, type AvatarUser } from '@/ui/components/Avatar';
 import { InviteCard } from '@/ui/components/InviteBits';
 import { Logo } from '@/ui/components/Logo';
-import { Body, Button, Card, Eyebrow, Pill, Row, Screen, Segmented, Small } from '@/ui/components/Primitives';
+import { Body, Button, Eyebrow, GlassCard, Pill, Row, Screen, Segmented, Small } from '@/ui/components/Primitives';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
-import { colors, space, statusColor } from '@/ui/theme';
+import { colors, space, statusColor, statusLabel } from '@/ui/theme';
 import { timeAgo } from '@/ui/time';
 
 export default function ProfileScreen() {
-  const repo = useRepository();
-  const snap = useSnapshot();
+  const commands = useCommands();
+  const view = useView();
   const router = useRouter();
-  const me = currentUser(snap);
-  const gid = myGroup(snap).id;
-  const p = me.personalProfile;
-  const hosted = snap.invites.filter((i) => i.hostGroupId === gid);
-  const myStories = snap.stories.filter((s) => s.authorUserId === me.id);
-  const business = me.activeProfile === 'business';
+  const self = view.self;
+  const hosted = view.invites.filter((i) => i.viewer.relation === 'host');
+  const myStories = self.stories;
+  const business = self.activeProfile === 'business';
+  const me: AvatarUser = avatarUserOf({
+    id: self.id,
+    displayName: self.displayName,
+    handle: self.handle,
+    photo: self.photo,
+    ...(self.business ? { verifiedBusiness: { venueName: self.business.venueName } } : {}),
+  });
 
   return (
     <Screen>
       <ScreenHeader title="Profile" />
       <ScrollView contentContainerStyle={styles.body}>
         <Row gap={space.lg}>
-          <Avatar user={me} size={64} ring={business ? colors.club : statusColor(p.liveStatus)} />
+          {/* Ring is premium-only, independent of status — same rule as the map's marker treatment (markerTreatment.ts).
+              Status gets its own pill below instead, matching the north star's "pill beside the name" for status. */}
+          <Avatar user={me} size={64} ring={!business && self.premium ? colors.chromeBright : undefined} />
           <View style={{ flex: 1, gap: 4 }}>
-            <Body style={{ fontSize: 20, fontWeight: '700' }}>{business ? me.businessProfile?.venueName : p.displayName}</Body>
-            <Small>@{me.handle}</Small>
-            <Row gap={6}>
+            <Body style={{ fontSize: 20, fontWeight: '700' }}>{business ? self.business?.venueName : self.displayName}</Body>
+            <Small>@{self.handle}</Small>
+            <Row gap={6} style={{ flexWrap: 'wrap' }}>
               <Pill label={business ? 'Business' : 'Personal'} color={business ? colors.club : colors.chrome} />
-              {!business && p.premium ? <Pill label="Premium" color={colors.chrome} filled /> : null}
+              {!business && self.premium ? <Pill label="Premium" color={colors.chrome} filled /> : null}
+              {self.canUseLiveStatus ? (
+                <Pill label={statusLabel(self.liveStatus)} color={statusColor(self.liveStatus)} filled={self.liveStatus !== 'off'} />
+              ) : null}
             </Row>
           </View>
         </Row>
 
-        {me.businessProfile ? (
-          <Card style={{ gap: space.sm }}>
+        {self.business ? (
+          <GlassCard style={{ gap: space.sm }}>
             <Eyebrow>Account</Eyebrow>
             <Segmented<AccountType>
               options={[
-                { value: 'personal', label: p.displayName },
-                { value: 'business', label: me.businessProfile.venueName },
+                { value: 'personal', label: self.displayName },
+                { value: 'business', label: self.business.venueName },
               ]}
-              value={me.activeProfile}
+              value={self.activeProfile}
               onChange={(to) => {
-                const r = repo.switchProfile(to);
+                const r = commands.switchProfile(to);
                 if (!r.ok) Alert.alert('Switch', r.reason);
               }}
             />
@@ -59,11 +67,11 @@ export default function ProfileScreen() {
                 ? 'You are acting as the venue. Live status is not available to business accounts.'
                 : 'Switch into your business profile to post as the venue.'}
             </Small>
-          </Card>
+          </GlassCard>
         ) : null}
 
-        {canUseLiveStatus(me) ? (
-          <Card style={{ gap: space.sm }}>
+        {self.canUseLiveStatus ? (
+          <GlassCard style={{ gap: space.sm }}>
             <Eyebrow>Live status</Eyebrow>
             <Segmented<LiveStatus>
               options={[
@@ -71,29 +79,27 @@ export default function ProfileScreen() {
                 { value: 'casual', label: 'Casual' },
                 { value: 'off', label: 'Off' },
               ]}
-              value={p.liveStatus}
+              value={self.liveStatus}
               onChange={(s) => {
-                const r = repo.setLiveStatus(s);
+                const r = commands.setLiveStatus(s);
                 if (!r.ok) Alert.alert('Status', r.reason);
               }}
               colorFor={statusColor}
             />
             <Small>
-              {p.liveStatus === 'dtf'
+              {self.liveStatus === 'dtf'
                 ? 'Green on the map — you are out and open to plans.'
-                : p.liveStatus === 'casual'
+                : self.liveStatus === 'casual'
                   ? 'Amber on the map — around, not hunting.'
-                  : p.lastKnownLocation
-                    ? `Frozen pin from ${timeAgo(p.lastKnownLocation.timestamp, new Date())} ago; it disappears after 48h.`
-                    : 'Not on the map.'}
+                  : 'Not on the map.'}
             </Small>
-            {p.premium ? <Small>Premium is a look (disco ball pin), not a status — it never turns DTF on for you.</Small> : null}
-          </Card>
+            {self.premium ? <Small>Premium is a look (disco ball pin), not a status — it never turns DTF on for you.</Small> : null}
+          </GlassCard>
         ) : (
-          <Card>
+          <GlassCard>
             <Eyebrow>Live status</Eyebrow>
             <Small style={{ marginTop: 4 }}>Business accounts have no live status. Your venue shows as a silver disco ball at its location.</Small>
-          </Card>
+          </GlassCard>
         )}
 
         <Eyebrow style={{ marginTop: space.sm }}>Hosting</Eyebrow>
@@ -102,10 +108,10 @@ export default function ProfileScreen() {
         <Eyebrow style={{ marginTop: space.sm }}>Stories</Eyebrow>
         {myStories.length ? (
           myStories.map((s) => (
-            <Card key={s.id}>
+            <GlassCard key={s.id}>
               <Body>{s.text}</Body>
               <Small style={{ marginTop: 4 }}>{timeAgo(s.createdAt, new Date())} ago</Small>
-            </Card>
+            </GlassCard>
           ))
         ) : (
           <Small>No stories yet.</Small>
@@ -114,7 +120,7 @@ export default function ProfileScreen() {
         <View style={styles.footer}>
           <Logo size={140} />
           <Small>func · prototype · mocked data</Small>
-          <Button small variant="ghost" label="Reset demo data" onPress={() => { repo.reset(); router.replace('/'); }} />
+          <Button small variant="ghost" label="Reset demo data" onPress={() => { commands.reset(); router.replace('/'); }} />
         </View>
       </ScrollView>
     </Screen>

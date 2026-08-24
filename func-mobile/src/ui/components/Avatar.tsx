@@ -1,10 +1,28 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import type { FuncUser } from '@/domain/types';
+import type { AccountType, BusinessProfile, PersonalProfile } from '@/domain/types';
+import type { PersonSummary } from '@/data/views';
 import { colors } from '../theme';
 
+export type AvatarUser = {
+  id: string;
+  activeProfile: AccountType;
+  personalProfile: Pick<PersonalProfile, 'displayName' | 'photo'>;
+  businessProfile?: Pick<BusinessProfile, 'venueName'>;
+};
+
+/** `PersonSummary` (the view-layer identity shape) -> what `Avatar`/`AvatarStack` expect. */
+export function avatarUserOf(person: PersonSummary): AvatarUser {
+  return {
+    id: person.id,
+    activeProfile: person.verifiedBusiness ? 'business' : 'personal',
+    personalProfile: { displayName: person.displayName, photo: person.photo },
+    ...(person.verifiedBusiness ? { businessProfile: { venueName: person.verifiedBusiness.venueName } } : {}),
+  };
+}
+
 /** Monogram avatar. `photo` is `mono:<hex>` in the prototype. */
-export function Avatar({ user, size = 36, ring }: { user: FuncUser | undefined; size?: number; ring?: string }) {
+export function Avatar({ user, size = 36, ring }: { user: AvatarUser | undefined; size?: number; ring?: string }) {
   const color = user?.personalProfile.photo.startsWith('mono:')
     ? user.personalProfile.photo.slice(5)
     : colors.surfaceRaised;
@@ -27,7 +45,7 @@ export function Avatar({ user, size = 36, ring }: { user: FuncUser | undefined; 
   );
 }
 
-export function AvatarStack({ users, size = 24, max = 4 }: { users: Array<FuncUser | undefined>; size?: number; max?: number }) {
+export function AvatarStack({ users, size = 24, max = 4 }: { users: Array<AvatarUser | undefined>; size?: number; max?: number }) {
   const shown = users.slice(0, max);
   const extra = users.length - shown.length;
   return (
@@ -44,7 +62,7 @@ export function AvatarStack({ users, size = 24, max = 4 }: { users: Array<FuncUs
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
-  initial: { color: '#16161a', fontWeight: '700' },
+  initial: { color: colors.nearBlack, fontWeight: '700' },
   stack: { flexDirection: 'row', alignItems: 'center' },
   extra: { color: colors.muted, fontSize: 12, marginLeft: 6 },
 });

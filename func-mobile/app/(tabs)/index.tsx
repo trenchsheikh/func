@@ -2,27 +2,26 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRepository, useSnapshot } from '@/data/DataContext';
-import { hostDisplayName } from '@/data/selectors';
+import { useCommands, useView } from '@/data/DataContext';
 import type { LatLng } from '@/domain/types';
-import { Avatar } from '@/ui/components/Avatar';
+import { Avatar, avatarUserOf } from '@/ui/components/Avatar';
 import { CloseIcon, SearchIcon } from '@/ui/components/Icons';
 import { InviteActions, InviteCover, InviteMeta } from '@/ui/components/InviteBits';
 import { Body, Button, Pill, Row, Small } from '@/ui/components/Primitives';
+import { useReducedMotion } from '@/ui/useReducedMotion';
 import { FuncMap, type MapHandle, type MapPin } from '@/ui/map/FuncMap';
 import { mapPins } from '@/ui/map/content';
-import { mapEntrance } from '@/ui/map/entrance';
+import { entranceAnimation, mapEntrance } from '@/ui/map/entrance';
 import { categoryColor, categoryLabel, colors, priceSymbols, radius, space, statusColor, statusLabel } from '@/ui/theme';
-import { useNow } from '@/ui/time';
 import { Discover } from '@/ui/map/Discover';
 
 export default function MapScreen() {
-  const snap = useSnapshot();
-  const now = useNow();
+  const view = useView();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const mapRef = useRef<MapHandle>(null);
-  const pins = useMemo(() => mapPins(snap, now), [snap, now]);
+  const reduceMotion = useReducedMotion();
+  const pins = useMemo(() => mapPins(view), [view]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const selected = pins.find((p) => p.id === selectedId) ?? null;
@@ -31,13 +30,15 @@ export default function MapScreen() {
   const scale = useRef(new Animated.Value(0.92)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const play = useCallback(() => {
-    scale.setValue(0.92);
-    opacity.setValue(0);
+    const animation = entranceAnimation(reduceMotion);
+    scale.setValue(animation.initialScale);
+    opacity.setValue(animation.initialOpacity);
+    if (animation.duration === 0) return;
     Animated.parallel([
-      Animated.timing(scale, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: animation.duration, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       Animated.timing(opacity, { toValue: 1, duration: 360, useNativeDriver: true }),
     ]).start();
-  }, [scale, opacity]);
+  }, [reduceMotion, scale, opacity]);
   useEffect(() => {
     play();
     return mapEntrance.subscribe(play);
@@ -70,14 +71,23 @@ export default function MapScreen() {
           </Pressable>
           {selected.kind === 'venue' ? <VenuePreview pin={selected} /> : null}
           {selected.kind === 'invite' ? <InvitePreview pin={selected} /> : null}
-          {selected.kind === 'live' ? <LivePreview pin={selected} /> : null}
+          {selected.kind === 'person' ? <PersonPreview pin={selected} /> : null}
+          {selected.kind === 'business' ? <BusinessPreview pin={selected} /> : null}
         </View>
       ) : null}
 
       {discoverOpen ? (
         <Discover
           onClose={() => setDiscoverOpen(false)}
-          onPickInvite={(inv) => goTo(inv.location, pins.find((p) => p.id === `invite:${inv.id}`))}
+          onPickInvite={(inv) => {
+            if (inv.where.kind === 'exact') {
+              goTo(inv.where.location, pins.find((p) => p.id === `invite:${inv.id}`));
+            } else {
+              // No disclosed coordinate to fly to (area-only or hidden) — just open its detail page instead.
+              setDiscoverOpen(false);
+              router.push({ pathname: '/invite/[id]', params: { id: inv.id } });
+            }
+          }}
           onPickVenue={(v) => goTo(v.location, pins.find((p) => p.id === `venue:${v.id}`))}
           onPickArea={(center) => goTo(center)}
         />
@@ -108,7 +118,6 @@ function VenuePreview({ pin }: { pin: Extract<MapPin, { kind: 'venue' }> }) {
 
 function InvitePreview({ pin }: { pin: Extract<MapPin, { kind: 'invite' }> }) {
   const router = useRouter();
-  const snap = useSnapshot();
   const inv = pin.invite;
   return (
     <View style={{ gap: space.sm }}>
@@ -117,7 +126,7 @@ function InvitePreview({ pin }: { pin: Extract<MapPin, { kind: 'invite' }> }) {
           <InviteCover invite={inv} size={48} />
           <View style={{ flex: 1, gap: 4 }}>
             <Body numberOfLines={2} style={{ fontWeight: '600' }}>{inv.description}</Body>
-            <Small>by {hostDisplayName(snap, inv)} · tap for details</Small>
+            <Small>by {inv.host.displayName} · tap for details</Small>
           </View>
         </Row>
       </Pressable>
@@ -127,34 +136,21 @@ function InvitePreview({ pin }: { pin: Extract<MapPin, { kind: 'invite' }> }) {
   );
 }
 
-function LivePreview({ pin }: { pin: Extract<MapPin, { kind: 'live' }> }) {
-  const repo = useRepository();
-  const snap = useSnapshot();
+function PersonPreview({ pin }: { pin: Extract<MapPin, { kind: 'person' }> }) {
+  const view = useView();
+  const commands = useCommands();
   const [text, setText] = useState('');
-  const isMe = pin.user.id === snap.currentUserId;
-  const u = pin.user;
-  const pendingToThem = snap.messageRequests.some((r) => r.fromUserId === snap.currentUserId && r.toUserId === u.id && r.status === 'pending');
-
-  if (pin.live.kind === 'business') {
-    return (
-      <Row gap={space.md} style={styles.headRow}>
-        <Avatar user={u} size={40} />
-        <View style={{ flex: 1 }}>
-          <Body style={{ fontWeight: '600' }}>{pin.live.venueName}</Body>
-          <Small>Business account · @{u.handle}</Small>
-        </View>
-        <Pill label="Venue" color={colors.club} />
-      </Row>
-    );
-  }
-  const { status, elapsedHours, premium } = pin.live;
+  const u = pin.person;
+  const isMe = u.id === view.self.id;
+  const pendingToThem = view.self.pendingMessageRequestsTo.includes(u.id);
+  const { status, premium } = pin.disclosure;
   return (
     <View style={{ gap: space.sm }}>
       <Row gap={space.md} style={styles.headRow}>
-        <Avatar user={u} size={40} ring={statusColor(status)} />
+        <Avatar user={avatarUserOf(u)} size={40} ring={statusColor(status)} />
         <View style={{ flex: 1 }}>
           <Body style={{ fontWeight: '600' }}>
-            {u.personalProfile.displayName}
+            {u.displayName}
             {isMe ? ' (you)' : ''}
           </Body>
           <Small>
@@ -162,7 +158,7 @@ function LivePreview({ pin }: { pin: Extract<MapPin, { kind: 'live' }> }) {
             {premium ? ' · premium' : ''}
           </Small>
         </View>
-        <Pill label={status === 'off' ? `Off · ${elapsedHours}h ago` : statusLabel(status)} color={statusColor(status)} filled={status !== 'off'} />
+        <Pill label={statusLabel(status)} color={statusColor(status)} filled />
       </Row>
       {!isMe ? (
         pendingToThem ? (
@@ -172,7 +168,7 @@ function LivePreview({ pin }: { pin: Extract<MapPin, { kind: 'live' }> }) {
             <TextInput
               value={text}
               onChangeText={setText}
-              placeholder={`Say hi to ${u.personalProfile.displayName}`}
+              placeholder={`Say hi to ${u.displayName}`}
               placeholderTextColor={colors.faint}
               style={styles.input}
             />
@@ -180,7 +176,7 @@ function LivePreview({ pin }: { pin: Extract<MapPin, { kind: 'live' }> }) {
               small
               label="Send"
               onPress={() => {
-                const r = repo.sendMessageRequest(u.id, text);
+                const r = commands.sendMessageRequest(u.id, text);
                 if (!r.ok) Alert.alert('Not sent', r.reason);
                 else setText('');
               }}
@@ -189,6 +185,20 @@ function LivePreview({ pin }: { pin: Extract<MapPin, { kind: 'live' }> }) {
         )
       ) : null}
     </View>
+  );
+}
+
+function BusinessPreview({ pin }: { pin: Extract<MapPin, { kind: 'business' }> }) {
+  const u = pin.person;
+  return (
+    <Row gap={space.md} style={styles.headRow}>
+      <Avatar user={avatarUserOf(u)} size={40} />
+      <View style={{ flex: 1 }}>
+        <Body style={{ fontWeight: '600' }}>{pin.venue.name}</Body>
+        <Small>Business account · @{u.handle}</Small>
+      </View>
+      <Pill label="Venue" color={colors.club} />
+    </Row>
   );
 }
 

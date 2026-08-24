@@ -2,8 +2,7 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSnapshot } from '@/data/DataContext';
-import { hostedInvitesWithPending, pendingMessageRequests } from '@/data/selectors';
+import { useView } from '@/data/DataContext';
 import { mapEntrance } from '../map/entrance';
 import { colors } from '../theme';
 import { ChatIcon, InboxIcon, PersonIcon, PlusIcon } from './Icons';
@@ -26,9 +25,9 @@ type TabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tab
 
 export function FuncTabBar({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
-  const snap = useSnapshot();
+  const view = useView();
   const inboxCount =
-    hostedInvitesWithPending(snap).reduce((n, b) => n + b.pending, 0) + pendingMessageRequests(snap).length;
+    view.inbox.joinBatches.reduce((n, b) => n + b.pendingCount, 0) + view.inbox.messageRequests.length;
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>

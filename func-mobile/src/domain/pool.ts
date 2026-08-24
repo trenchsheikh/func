@@ -65,12 +65,23 @@ export function relationTo(invite: PoolInvite, groupId: string): ViewerRelation 
   return 'none';
 }
 
+/**
+ * Reads as "happening now" for Browse purposes: no scheduled start at all
+ * (the Create form's own "Whenever" option — see `app/(tabs)/create.tsx`),
+ * or a scheduled start that has already arrived. Not a new invite state —
+ * `startsAt` already means exactly this; this only names the existing
+ * distinction for display/sorting.
+ */
+export function isHappeningNow(invite: { readonly startsAt?: string }, now: Date): boolean {
+  return !invite.startsAt || new Date(invite.startsAt) <= now;
+}
+
 /** Short human label for the capacity/access combination. */
-export function accessLabel(invite: PoolInvite): string {
+export function accessLabel(invite: { readonly access: { readonly mode: 'private' | 'public' } }): string {
   return invite.access.mode === 'public' ? 'Open walk-in' : 'Request to join';
 }
 
-export function capacityLabel(invite: PoolInvite): string {
+export function capacityLabel(invite: { readonly capacity: { readonly mode: 'capped' | 'uncapped'; readonly max?: number } }): string {
   return invite.capacity.mode === 'capped' && invite.capacity.max != null
     ? `Max ${invite.capacity.max}`
     : 'No cap';

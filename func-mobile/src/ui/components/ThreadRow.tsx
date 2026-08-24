@@ -1,36 +1,36 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { useSnapshot } from '@/data/DataContext';
-import { groupLead, lastActivity, userById } from '@/data/selectors';
-import type { ChatThread } from '@/domain/types';
+import { useView } from '@/data/DataContext';
+import type { ThreadView } from '@/data/views';
 import { colors, radius, space } from '../theme';
 import { timeAgo } from '../time';
-import { Avatar, AvatarStack } from './Avatar';
+import { Avatar, AvatarStack, avatarUserOf } from './Avatar';
 import { Body, Pill, Row, Small } from './Primitives';
 
-export function ThreadRow({ thread }: { thread: ChatThread }) {
-  const snap = useSnapshot();
+export function ThreadRow({ thread }: { thread: ThreadView }) {
+  const view = useView();
   const router = useRouter();
   const last = thread.messages[thread.messages.length - 1];
-  const other = thread.kind === 'dm'
-    ? groupLead(snap, thread.participantGroupIds.find((g) => groupLead(snap, g)?.id !== snap.currentUserId) ?? '')
-    : undefined;
-  const leads = thread.participantGroupIds.map((g) => groupLead(snap, g));
-  const sender = last ? userById(snap, last.senderUserId) : undefined;
+  const other = thread.kind === 'dm' ? thread.participants.find((p) => p.id !== view.self.id) : undefined;
+  const sender = last ? view.people.get(last.senderId) : undefined;
   return (
     <Pressable style={styles.row} onPress={() => router.push({ pathname: '/thread/[id]', params: { id: thread.id } })}>
-      {thread.kind === 'dm' ? <Avatar user={other} size={42} /> : <AvatarStack users={leads} size={30} max={3} />}
+      {thread.kind === 'dm' ? (
+        <Avatar user={other ? avatarUserOf(other) : undefined} size={42} />
+      ) : (
+        <AvatarStack users={thread.participants.map(avatarUserOf)} size={30} max={3} />
+      )}
       <View style={{ flex: 1, gap: 2 }}>
         <Row gap={6}>
           <Body numberOfLines={1} style={{ fontWeight: '600', flex: 1 }}>{thread.title}</Body>
           {thread.kind === 'pool' ? <Pill label="Pool" /> : null}
         </Row>
         <Small numberOfLines={1}>
-          {last ? `${sender?.id === snap.currentUserId ? 'You' : sender?.personalProfile.displayName ?? '?'}: ${last.text}` : 'No messages yet'}
+          {last ? `${sender?.id === view.self.id ? 'You' : sender?.displayName ?? '?'}: ${last.text}` : 'No messages yet'}
         </Small>
       </View>
-      <Small>{lastActivity(thread) ? timeAgo(lastActivity(thread), new Date()) : ''}</Small>
+      <Small>{thread.lastActivity ? timeAgo(thread.lastActivity, new Date()) : ''}</Small>
     </Pressable>
   );
 }

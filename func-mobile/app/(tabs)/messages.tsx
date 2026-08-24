@@ -1,7 +1,6 @@
 import React from 'react';
 import { FlatList } from 'react-native';
-import { useSnapshot } from '@/data/DataContext';
-import { myThreads } from '@/data/selectors';
+import { useView } from '@/data/DataContext';
 import { Empty, Screen } from '@/ui/components/Primitives';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
 import { ThreadRow } from '@/ui/components/ThreadRow';
@@ -9,8 +8,8 @@ import { space } from '@/ui/theme';
 
 /** Open-ended messaging: every chat you are in — Pool group chats and DMs. */
 export default function MessagesScreen() {
-  const snap = useSnapshot();
-  const threads = myThreads(snap);
+  const view = useView();
+  const threads = view.threads;
   return (
     <Screen>
       <ScreenHeader title="Messages" />
