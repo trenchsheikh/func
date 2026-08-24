@@ -1,5 +1,10 @@
-import type { AccountType, LatLng, LiveStatus, VerificationStatus } from '@/domain/types';
-import type { InviteLocationDisclosure, ViewerInviteRelation, PersonDisclosure } from '@/domain/visibility';
+import type { AccountType, ChatThread, FuncUser, Group, LatLng, LiveStatus, PoolInvite, VerificationStatus } from '@/domain/types';
+import type { InviteLocationDisclosure, ViewerContext, ViewerInviteRelation, PersonDisclosure } from '@/domain/visibility';
+import { areaLabelFor, inviteDisclosure, isVerifiedBusiness, personDisclosure, venueGlow } from '@/domain/visibility';
+import { attendingPartySize, pendingRequests, relationTo, seatsLeft as inviteSeatsLeft } from '@/domain/pool';
+import { canUseLiveStatus, isPresenceLive } from '@/domain/liveStatus';
+import type { Snapshot } from './repository';
+import { groupById, groupLead, lastActivity, partySizeOf, pendingMessageRequests, userById, viewerContextOf } from './selectors';
 
 /** The only identity shape the UI ever sees. */
 export interface PersonSummary {
@@ -132,4 +137,348 @@ export interface ViewerSnapshot {
   readonly glowVenueIds: ReadonlySet<string>;
   readonly threads: readonly ThreadView[];
   readonly inbox: InboxView;
+}
+
+// ---------------------------------------------------------------------------
+// viewFor -- the one function that turns a Snapshot into a ViewerSnapshot.
+// Every field above is built fresh from whitelisted pieces; no raw domain
+// record ever crosses this boundary unfiltered.
+// ---------------------------------------------------------------------------
+
+function unknownPerson(): PersonSummary {
+  return { id: 'unknown', displayName: 'Unknown', handle: '', photo: '' };
+}
+
+function personSummary(user: FuncUser): PersonSummary {
+  const acting = user.activeProfile === 'business' && isVerifiedBusiness(user);
+  return {
+    id: user.id,
+    displayName: acting ? user.businessProfile!.venueName : user.personalProfile.displayName,
+    handle: user.handle,
+    photo: user.personalProfile.photo,
+    ...(acting ? { verifiedBusiness: { venueName: user.businessProfile!.venueName } } : {}),
+  };
+}
+
+/** Host identity follows the profile the invite was created under, not the host's current one. */
+function hostPersonSummary(invite: PoolInvite, host: FuncUser | undefined): PersonSummary {
+  if (!host) return unknownPerson();
+  if (invite.createdByAccountType === 'business' && host.businessProfile) {
+    return {
+      id: host.id,
+      displayName: host.businessProfile.venueName,
+      handle: host.handle,
+      photo: host.personalProfile.photo,
+      verifiedBusiness: { venueName: host.businessProfile.venueName },
+    };
+  }
+  return personSummary(host);
+}
+
+/** A business-hosted invite is hidden entirely once its verification is revoked. */
+function inviteVisible(invite: PoolInvite, host: FuncUser | undefined): boolean {
+  if (invite.createdByAccountType !== 'business') return true;
+  return !!host && isVerifiedBusiness(host);
+}
+
+function goingCount(s: Snapshot, invite: PoolInvite): number {
+  const sizeOf = partySizeOf(s);
+  return invite.attendeeGroupIds.reduce((sum, g) => sum + attendingPartySize(invite, g, sizeOf), 0);
+}
+
+function partyOf(
+  s: Snapshot,
+  groupId: string,
+  size: number,
+  addPerson: (u: FuncUser) => void,
+): PartySummary & { readonly members: readonly PersonSummary[] } {
+  const group: Group | undefined = groupById(s, groupId);
+  const lead = group ? userById(s, group.leadUserId) : undefined;
+  if (lead) addPerson(lead);
+  const members = (group ? group.memberUserIds : [])
+    .map((id) => userById(s, id))
+    .filter((u): u is FuncUser => !!u);
+  members.forEach(addPerson);
+  return {
+    size,
+    lead: lead ? personSummary(lead) : unknownPerson(),
+    members: members.map(personSummary),
+  };
+}
+
+/**
+ * inviteDisclosure resolves venue-anchored invites to the venue's coordinate
+ * for everyone (D4) -- correct for public events, but that same short-circuit
+ * would also expose a private, venue-anchored invite's exact coordinate to a
+ * viewer with no relation to it. Private invites disclose an exact coordinate
+ * only to their host/attendees (see visibility.ts's own docstring for the
+ * non-anchored case); this closes the gap for the anchored case without
+ * touching the single-source-of-truth policy function itself.
+ */
+function inviteWhere(
+  ctx: ViewerContext,
+  invite: PoolInvite,
+  host: FuncUser | undefined,
+  venues: Snapshot['venues'],
+  relation: ViewerInviteRelation,
+): InviteLocationDisclosure {
+  const where = inviteDisclosure(ctx, invite, host, venues, relation);
+  const partyToIt = relation === 'host' || relation === 'attending';
+  if (invite.access.mode === 'private' && !partyToIt && where.kind === 'exact') {
+    return { kind: 'area', areaLabel: areaLabelFor(where.location, venues) };
+  }
+  return where;
+}
+
+function buildInviteCard(
+  s: Snapshot,
+  invite: PoolInvite,
+  host: FuncUser | undefined,
+  ctx: ViewerContext,
+  relation: ViewerInviteRelation,
+): InviteCardView {
+  return {
+    id: invite.id,
+    description: invite.description,
+    createdAt: invite.createdAt,
+    ...(invite.startsAt ? { startsAt: invite.startsAt } : {}),
+    access: invite.access,
+    capacity: invite.capacity,
+    seatsLeft: inviteSeatsLeft(invite, partySizeOf(s)),
+    goingCount: goingCount(s, invite),
+    hostedByVerifiedBusiness: invite.createdByAccountType === 'business',
+    host: hostPersonSummary(invite, host),
+    where: inviteWhere(ctx, invite, host, s.venues, relation),
+    viewer: { relation },
+  };
+}
+
+function buildInviteDetail(
+  s: Snapshot,
+  invite: PoolInvite,
+  host: FuncUser | undefined,
+  ctx: ViewerContext,
+  relation: ViewerInviteRelation,
+  card: InviteCardView,
+  addPerson: (u: FuncUser) => void,
+): InviteDetailView {
+  const ownRequest = invite.requests.find((r) => r.requestingGroupId === ctx.viewerGroupId);
+
+  const review: HostReviewView | undefined =
+    relation === 'host'
+      ? {
+          inviteId: invite.id,
+          seatsLeft: card.seatsLeft,
+          pending: pendingRequests(invite).map((r) => ({
+            partyKey: r.requestingGroupId,
+            party: partyOf(s, r.requestingGroupId, r.partySize, addPerson),
+            status: r.status,
+            ...(r.preAcceptMessage ? { preAcceptMessage: r.preAcceptMessage.text } : {}),
+          })),
+          decided: invite.requests
+            .filter((r) => r.status !== 'pending')
+            .map((r) => ({
+              partyKey: r.requestingGroupId,
+              party: partyOf(s, r.requestingGroupId, r.partySize, addPerson),
+              status: r.status,
+              ...(r.preAcceptMessage ? { preAcceptMessage: r.preAcceptMessage.text } : {}),
+            })),
+        }
+      : undefined;
+
+  const plan: AcceptedPlanView | undefined =
+    relation === 'host' || relation === 'attending'
+      ? {
+          inviteId: invite.id,
+          threadId: invite.groupChatId,
+          attendees: invite.attendeeGroupIds.map((g) =>
+            partyOf(s, g, attendingPartySize(invite, g, partySizeOf(s)), addPerson),
+          ),
+        }
+      : undefined;
+
+  return {
+    id: card.id,
+    description: card.description,
+    createdAt: card.createdAt,
+    ...(card.startsAt ? { startsAt: card.startsAt } : {}),
+    access: card.access,
+    capacity: card.capacity,
+    seatsLeft: card.seatsLeft,
+    goingCount: card.goingCount,
+    hostedByVerifiedBusiness: card.hostedByVerifiedBusiness,
+    host: card.host,
+    where: card.where,
+    viewer: {
+      relation,
+      ...(ownRequest
+        ? {
+            ownRequest: {
+              partySize: ownRequest.partySize,
+              status: ownRequest.status,
+              ...(ownRequest.preAcceptMessage ? { preAcceptMessage: ownRequest.preAcceptMessage.text } : {}),
+            },
+          }
+        : {}),
+    },
+    ...(plan ? { plan } : {}),
+    ...(review ? { review } : {}),
+  };
+}
+
+function buildSelfView(
+  s: Snapshot,
+  self: FuncUser,
+  ctx: ViewerContext,
+  now: Date,
+  addPerson: (u: FuncUser) => void,
+): SelfView {
+  const group = s.groups.find((g) => g.leadUserId === self.id);
+  const members = (group ? group.memberUserIds : [self.id])
+    .map((id) => userById(s, id))
+    .filter((u): u is FuncUser => !!u);
+  const memberList = members.length > 0 ? members : [self];
+  memberList.forEach(addPerson);
+
+  const stories: StoryView[] = s.stories
+    .filter((st) => st.authorUserId === self.id)
+    .map((st) => ({ id: st.id, text: st.text, createdAt: st.createdAt }));
+
+  const pendingMessageRequestsTo = s.messageRequests
+    .filter((r) => r.fromUserId === self.id && r.status === 'pending')
+    .map((r) => r.toUserId);
+
+  return {
+    id: self.id,
+    displayName: self.personalProfile.displayName,
+    handle: self.handle,
+    photo: self.personalProfile.photo,
+    activeProfile: self.activeProfile,
+    liveStatus: self.personalProfile.liveStatus,
+    isLive: isPresenceLive(self.personalProfile, now),
+    canUseLiveStatus: canUseLiveStatus(self),
+    premium: self.personalProfile.premium,
+    ...(self.businessProfile
+      ? { business: { venueName: self.businessProfile.venueName, verification: self.businessProfile.verification.status } }
+      : {}),
+    party: {
+      size: memberList.length,
+      lead: personSummary(self),
+      members: memberList.map(personSummary),
+    },
+    stories,
+    pendingMessageRequestsTo,
+  };
+}
+
+function buildThread(
+  s: Snapshot,
+  t: ChatThread,
+  addPerson: (u: FuncUser) => void,
+): ThreadView {
+  const participants = t.participantGroupIds
+    .map((gid) => groupLead(s, gid))
+    .filter((u): u is FuncUser => !!u);
+  participants.forEach(addPerson);
+  t.messages.forEach((m) => {
+    const sender = userById(s, m.senderUserId);
+    if (sender) addPerson(sender);
+  });
+
+  return {
+    id: t.id,
+    kind: t.kind,
+    title: t.title,
+    ...(t.poolInviteId ? { inviteId: t.poolInviteId } : {}),
+    participants: participants.map(personSummary),
+    messages: t.messages.map((m) => ({ id: m.id, senderId: m.senderUserId, text: m.text, sentAt: m.sentAt })),
+    lastActivity: lastActivity(t),
+  };
+}
+
+/**
+ * The only function that turns a raw Snapshot into what one viewer's UI is
+ * allowed to see. Fails closed on unresolved references (never fabricates an
+ * identity) and never mutates the snapshot or repository.
+ */
+export function viewFor(s: Snapshot, now: Date): ViewerSnapshot {
+  const ctx = viewerContextOf(s, now);
+  const selfUser = userById(s, s.currentUserId);
+  if (!selfUser) throw new Error('current user missing');
+
+  const people = new Map<string, PersonSummary>();
+  const addPerson = (u: FuncUser) => {
+    if (!people.has(u.id)) people.set(u.id, personSummary(u));
+  };
+  addPerson(selfUser);
+
+  const invites: InviteCardView[] = [];
+  const invitesById = new Map<string, InviteCardView>();
+  const inviteDetails = new Map<string, InviteDetailView>();
+  for (const invite of s.invites) {
+    const host = groupLead(s, invite.hostGroupId);
+    if (!inviteVisible(invite, host)) continue;
+    if (host) addPerson(host);
+    const relation = relationTo(invite, ctx.viewerGroupId);
+    const card = buildInviteCard(s, invite, host, ctx, relation);
+    invites.push(card);
+    invitesById.set(invite.id, card);
+    inviteDetails.set(invite.id, buildInviteDetail(s, invite, host, ctx, relation, card, addPerson));
+  }
+
+  const presence: PresenceItem[] = [];
+  for (const u of s.users) {
+    const disclosure = personDisclosure(ctx, u, s.venues);
+    if (disclosure.kind === 'none') continue;
+    addPerson(u);
+    presence.push({ person: personSummary(u), disclosure });
+  }
+
+  const glowVenueIds = venueGlow(ctx, s.users, s.venues);
+
+  const threads: ThreadView[] = s.threads
+    .filter((t) => t.participantGroupIds.includes(ctx.viewerGroupId))
+    .map((t) => buildThread(s, t, addPerson));
+
+  const joinBatches = s.invites
+    .filter((invite) => invite.hostGroupId === ctx.viewerGroupId && invitesById.has(invite.id))
+    .map((invite) => ({
+      invite: invitesById.get(invite.id)!,
+      pendingCount: pendingRequests(invite).length,
+      pendingLeads: pendingRequests(invite)
+        .map((r) => groupLead(s, r.requestingGroupId))
+        .filter((u): u is FuncUser => !!u)
+        .map((u) => {
+          addPerson(u);
+          return personSummary(u);
+        }),
+    }))
+    .filter((batch) => batch.pendingCount > 0);
+
+  const messageRequests: IncomingMessageRequestView[] = pendingMessageRequests(s)
+    .map((r) => {
+      const from = userById(s, r.fromUserId);
+      if (from) addPerson(from);
+      return {
+        id: r.id,
+        from: from ? personSummary(from) : unknownPerson(),
+        text: r.text,
+        createdAt: r.createdAt,
+      };
+    });
+
+  const self = buildSelfView(s, selfUser, ctx, now, addPerson);
+
+  return {
+    authority: ctx.authority,
+    self,
+    people,
+    venues: s.venues,
+    invites,
+    inviteDetails,
+    presence,
+    glowVenueIds,
+    threads,
+    inbox: { joinBatches, messageRequests },
+  };
 }
