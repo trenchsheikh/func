@@ -11,6 +11,12 @@ import type {
   Venue,
 } from '@/domain/types';
 
+/** Symmetric friendship edge; mutuals are derived, never stored. */
+export interface FriendEdge {
+  readonly a: string;
+  readonly b: string;
+}
+
 /**
  * Everything the UI can read, as one immutable snapshot. A new snapshot object
  * is produced on every mutation, so React can re-render by reference equality.
@@ -23,6 +29,7 @@ export interface Snapshot {
   readonly currentUserId: string;
   readonly users: readonly FuncUser[];
   readonly groups: readonly Group[];
+  readonly friendships: readonly FriendEdge[];
   readonly venues: readonly Venue[];
   readonly invites: readonly PoolInvite[];
   readonly threads: readonly ChatThread[];
@@ -32,7 +39,9 @@ export interface Snapshot {
 
 export interface CreateInviteInput {
   description: string;
-  location: LatLng;
+  /** Required only when venueId is absent (private location). Ignored when venueId is present. */
+  location?: LatLng;
+  venueId?: string;
   capacity: { mode: 'capped' | 'uncapped'; max?: number };
   access: { mode: 'private' | 'public' };
   startsAt?: string;
@@ -40,6 +49,10 @@ export interface CreateInviteInput {
 
 export type CommandResult =
   | { ok: true }
+  | { ok: false; reason: string };
+
+export type CreateInviteResult =
+  | { ok: true; inviteId: string }
   | { ok: false; reason: string };
 
 export interface FuncRepository {
@@ -53,7 +66,7 @@ export interface FuncRepository {
   switchProfile(to: AccountType): CommandResult;
 
   // --- pool invites -------------------------------------------------------
-  createInvite(input: CreateInviteInput): PoolInvite;
+  createInvite(input: CreateInviteInput): CreateInviteResult;
   /** Public invites only. Joins immediately, subject to the capacity cap. */
   joinInvite(inviteId: string, partySize: number): CommandResult;
   /** Private invites only. Creates a pending request; never auto-accepts. */
@@ -77,3 +90,11 @@ export interface FuncRepository {
   /** Back to the pristine demo state. */
   reset(): void;
 }
+// No impersonation / persona command on this interface.
+
+/** The command surface the UI may call. Raw state accessors are not part of it. */
+export type FuncCommands = Pick<
+  FuncRepository,
+  | 'setLiveStatus' | 'switchProfile' | 'createInvite' | 'joinInvite' | 'requestToJoin'
+  | 'reviewRequest' | 'sendMessage' | 'respondToMessageRequest' | 'sendMessageRequest' | 'postStory' | 'reset'
+>;

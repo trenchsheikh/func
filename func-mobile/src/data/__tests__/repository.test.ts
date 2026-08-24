@@ -140,17 +140,81 @@ test('live pins: off fades after 48h, premium never auto-sets dtf', () => {
 test('creating an invite auto-creates its chat; reset returns to pristine', () => {
   const repo = fresh();
   const count = repo.getSnapshot().invites.length;
-  const inv = repo.createInvite({
+  const result = repo.createInvite({
     description: 'test',
-    location: { lat: 1, lng: 2 },
+    venueId: 'v_lantern',
     capacity: { mode: 'capped', max: 5 },
     access: { mode: 'public' },
   });
+  assert.equal(result.ok, true);
+  if (!result.ok) throw new Error('expected ok');
   const s = repo.getSnapshot();
   assert.equal(s.invites.length, count + 1);
+  const inv = s.invites.find((i) => i.id === result.inviteId)!;
   assert.ok(s.threads.find((t) => t.id === inv.groupChatId && t.poolInviteId === inv.id));
   repo.reset();
   assert.equal(repo.getSnapshot().invites.length, count);
+});
+
+test('createInvite gates: unverified business, public without venueId, missing location', () => {
+  const repo = fresh();
+
+  repo.switchProfile('business');
+  const unverified = repo.createInvite({
+    description: 'biz event',
+    venueId: 'v_lantern',
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'public' },
+  });
+  assert.equal(unverified.ok, false);
+  if (unverified.ok) throw new Error('expected failure');
+  assert.match(unverified.reason, /verified/);
+  repo.switchProfile('personal');
+
+  const noVenue = repo.createInvite({
+    description: 'open invite, no venue',
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'public' },
+  });
+  assert.deepEqual(noVenue, {
+    ok: false,
+    reason: 'Open invites must be at a listed venue -- private places need a private invite.',
+  });
+
+  const noLocation = repo.createInvite({
+    description: 'private, no location',
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'private' },
+  });
+  assert.deepEqual(noLocation, { ok: false, reason: 'Pin a location.' });
+});
+
+test('off clears the fix; re-enabling live republishes the seeded device fix', () => {
+  const repo = fresh();
+  assert.equal(repo.setLiveStatus('off').ok, true);
+  let me = repo.getSnapshot().users.find((u) => u.id === 'u_maya')!;
+  assert.equal(me.personalProfile.lastKnownLocation, undefined);
+
+  assert.equal(repo.setLiveStatus('dtf').ok, true);
+  me = repo.getSnapshot().users.find((u) => u.id === 'u_maya')!;
+  assert.ok(me.personalProfile.lastKnownLocation);
+  assert.equal(me.personalProfile.lastKnownLocation!.lat, 37.7601);
+  assert.equal(me.personalProfile.lastKnownLocation!.lng, -122.4201);
+});
+
+test('switching to business clears the personal fix', () => {
+  const repo = fresh();
+  assert.equal(repo.switchProfile('business').ok, true);
+  const me = repo.getSnapshot().users.find((u) => u.id === 'u_maya')!;
+  assert.equal(me.personalProfile.lastKnownLocation, undefined);
+});
+
+test('demo.switchPersona changes currentUserId and rejects an unknown id', () => {
+  const repo = fresh();
+  assert.ok(repo.demo.personas().find((p) => p.id === 'u_theo'));
+  assert.equal(repo.demo.switchPersona('u_theo').ok, true);
+  assert.equal(repo.getSnapshot().currentUserId, 'u_theo');
+  assert.deepEqual(repo.demo.switchPersona('u_nobody'), { ok: false, reason: 'Unknown persona.' });
 });
 
 test('message requests: accept creates a DM thread, deny does not', () => {

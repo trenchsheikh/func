@@ -3,16 +3,19 @@ import type {
   ChatMessage,
   ChatThread,
   Group,
+  LatLng,
   LiveStatus,
   PoolInvite,
 } from '@/domain/types';
-import { isFull, relationTo } from '@/domain/pool';
+import { canCreateInviteAs, isFull, relationTo } from '@/domain/pool';
 import type {
   CommandResult,
   CreateInviteInput,
+  CreateInviteResult,
   FuncRepository,
   Snapshot,
 } from './repository';
+import type { DemoControls } from './demo';
 
 export interface Clock {
   now(): Date;
@@ -31,12 +34,30 @@ function nextId(prefix: string): string {
 export class InMemoryRepository implements FuncRepository {
   private snapshot: Snapshot;
   private readonly listeners = new Set<() => void>();
+  /** Each user's device position, independent of live-status/fix visibility. No entry = no fix, ever. */
+  private readonly deviceFixes: ReadonlyMap<string, LatLng>;
+
+  readonly demo: DemoControls = {
+    personas: () => this.snapshot.users.map((u) => ({ id: u.id, label: u.personalProfile.displayName })),
+    switchPersona: (userId: string): CommandResult => {
+      const target = this.snapshot.users.find((u) => u.id === userId);
+      if (!target) return { ok: false, reason: 'Unknown persona.' };
+      this.patch({ currentUserId: userId });
+      return { ok: true };
+    },
+  };
 
   constructor(
     private readonly buildSeed: (now: Date) => Snapshot,
     private readonly clock: Clock = { now: () => new Date() },
   ) {
     this.snapshot = buildSeed(clock.now());
+    const fixes = new Map<string, LatLng>();
+    for (const u of this.snapshot.users) {
+      const loc = u.personalProfile.lastKnownLocation;
+      if (loc) fixes.set(u.id, { lat: loc.lat, lng: loc.lng });
+    }
+    this.deviceFixes = fixes;
   }
 
   getSnapshot(): Snapshot {
@@ -122,15 +143,20 @@ export class InMemoryRepository implements FuncRepository {
     this.patch({
       users: this.snapshot.users.map((u) => {
         if (u.id !== me.id) return u;
-        const prev = u.personalProfile.lastKnownLocation;
-        // Turning status on refreshes the "last known" fix; turning off freezes it.
-        const lastKnownLocation =
-          status === 'off' || !prev ? prev : { ...prev, timestamp: now };
+        if (status === 'off') {
+          // Off removes the fix immediately -- no lingering pin while status is off.
+          const { lastKnownLocation: _drop, ...rest } = u.personalProfile;
+          return { ...u, personalProfile: { ...rest, liveStatus: status, liveStatusSince: now } };
+        }
+        // Turning live back on republishes from the device's fix, if it has one.
+        const fix = this.deviceFixes.get(u.id);
+        const lastKnownLocation = fix ? { ...fix, timestamp: now } : u.personalProfile.lastKnownLocation;
         return {
           ...u,
           personalProfile: {
             ...u.personalProfile,
             liveStatus: status,
+            liveStatusSince: now,
             ...(lastKnownLocation ? { lastKnownLocation } : {}),
           },
         };
@@ -146,21 +172,15 @@ export class InMemoryRepository implements FuncRepository {
     }
     if (me.activeProfile === to) return { ok: true };
     this.patch({
-      users: this.snapshot.users.map((u) =>
-        u.id === me.id
-          ? {
-              ...u,
-              activeProfile: to,
-              // Switching into business removes live-status access; the
-              // personal profile's status is switched off rather than left
-              // silently broadcasting.
-              personalProfile:
-                to === 'business'
-                  ? { ...u.personalProfile, liveStatus: 'off' }
-                  : u.personalProfile,
-            }
-          : u,
-      ),
+      users: this.snapshot.users.map((u) => {
+        if (u.id !== me.id) return u;
+        if (to !== 'business') return { ...u, activeProfile: to };
+        // Switching into business removes live-status access and the fix
+        // itself; the personal profile's status is switched off rather than
+        // left silently broadcasting.
+        const { lastKnownLocation: _drop, ...rest } = u.personalProfile;
+        return { ...u, activeProfile: to, personalProfile: { ...rest, liveStatus: 'off' } };
+      }),
     });
     return { ok: true };
   }
@@ -169,8 +189,28 @@ export class InMemoryRepository implements FuncRepository {
   // pool invites
   // -------------------------------------------------------------------------
 
-  createInvite(input: CreateInviteInput): PoolInvite {
+  createInvite(input: CreateInviteInput): CreateInviteResult {
     const me = this.me();
+    const canCreate = canCreateInviteAs(me);
+    if (!canCreate.ok) return canCreate;
+
+    let location: LatLng;
+    if (input.access.mode === 'public' && !input.venueId) {
+      return {
+        ok: false,
+        reason: 'Open invites must be at a listed venue -- private places need a private invite.',
+      };
+    }
+    if (input.venueId) {
+      const venue = this.snapshot.venues.find((v) => v.id === input.venueId);
+      if (!venue) return { ok: false, reason: 'Pin a location.' };
+      location = venue.location;
+    } else if (input.location) {
+      location = input.location;
+    } else {
+      return { ok: false, reason: 'Pin a location.' };
+    }
+
     const group = this.myGroup();
     const now = this.clock.now().toISOString();
     const inviteId = nextId('inv');
@@ -179,7 +219,7 @@ export class InMemoryRepository implements FuncRepository {
       id: inviteId,
       hostGroupId: group.id,
       description: input.description.trim(),
-      location: input.location,
+      location,
       capacity:
         input.capacity.mode === 'capped' && input.capacity.max != null
           ? { mode: 'capped', max: input.capacity.max }
@@ -214,7 +254,7 @@ export class InMemoryRepository implements FuncRepository {
       invites: [invite, ...this.snapshot.invites],
       threads: [chat, ...this.snapshot.threads],
     });
-    return invite;
+    return { ok: true, inviteId };
   }
 
   joinInvite(inviteId: string, partySize: number): CommandResult {
