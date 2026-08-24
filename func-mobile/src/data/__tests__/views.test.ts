@@ -109,6 +109,20 @@ test('an invite hosted by a business whose verification is revoked is hidden ent
   assert.equal(view.invites.some((i) => i.host.displayName === 'Audiowave'), false);
 });
 
+test('when a business invite\'s verification is revoked, its pool thread is hidden from an affected participant', () => {
+  const seed = buildSeed(NOW);
+  const wren = seed.users.find((u) => u.id === 'u_wren')!;
+  wren.businessProfile!.verification.status = 'unverified';
+
+  // u_kai attended inv_audiowave and is a participant of thr_inv_audiowave --
+  // revoking Wren's verification must fail closed for Kai too, not just for
+  // unrelated viewers.
+  const kaiView = viewFor({ ...seed, currentUserId: 'u_kai' }, NOW);
+  assert.equal(kaiView.invites.some((i) => i.id === 'inv_audiowave'), false);
+  assert.equal(kaiView.inviteDetails.has('inv_audiowave'), false);
+  assert.equal(kaiView.threads.some((t) => t.id === 'thr_inv_audiowave'), false);
+});
+
 test('an unresolved reference fails closed -- no crash, no fabricated identity', () => {
   const seed = buildSeed(NOW);
   const ghostGroupId = 'g_ghost_missing';

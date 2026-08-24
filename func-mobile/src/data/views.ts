@@ -414,6 +414,7 @@ export function viewFor(s: Snapshot, now: Date): ViewerSnapshot {
 
   const threads: ThreadView[] = s.threads
     .filter((t) => t.participantGroupIds.includes(ctx.viewerGroupId))
+    .filter((t) => !t.poolInviteId || invitesById.has(t.poolInviteId))
     .map((t) => buildThread(s, t, addPerson));
 
   const joinBatches = s.invites
