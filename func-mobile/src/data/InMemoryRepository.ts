@@ -27,6 +27,14 @@ function nextId(prefix: string): string {
   return `${prefix}_${idCounter.toString(36)}`;
 }
 
+function isValidLatLng(loc: LatLng | undefined): loc is LatLng {
+  return (
+    !!loc &&
+    Number.isFinite(loc.lat) && loc.lat >= -90 && loc.lat <= 90 &&
+    Number.isFinite(loc.lng) && loc.lng >= -180 && loc.lng <= 180
+  );
+}
+
 /**
  * Fully mocked, in-memory implementation. No persistence: every construction
  * starts from `buildSeed(now)`, so every app launch is pristine.
@@ -195,17 +203,22 @@ export class InMemoryRepository implements FuncRepository {
     if (!canCreate.ok) return canCreate;
 
     let location: LatLng;
-    if (input.access.mode === 'public' && !input.venueId) {
-      return {
-        ok: false,
-        reason: 'Open invites must be at a listed venue -- private places need a private invite.',
-      };
-    }
-    if (input.venueId) {
-      const venue = this.snapshot.venues.find((v) => v.id === input.venueId);
+    const venue = input.venueId ? this.snapshot.venues.find((v) => v.id === input.venueId) : undefined;
+
+    if (input.access.mode === 'public') {
+      // A missing venueId and an unresolved one are the same failure from the
+      // creator's perspective: this open invite has no listed venue to anchor it.
+      if (!venue) {
+        return {
+          ok: false,
+          reason: 'Open invites must be at a listed venue -- private places need a private invite.',
+        };
+      }
+      location = venue.location;
+    } else if (input.venueId) {
       if (!venue) return { ok: false, reason: 'Pin a location.' };
       location = venue.location;
-    } else if (input.location) {
+    } else if (isValidLatLng(input.location)) {
       location = input.location;
     } else {
       return { ok: false, reason: 'Pin a location.' };

@@ -189,6 +189,49 @@ test('createInvite gates: unverified business, public without venueId, missing l
   assert.deepEqual(noLocation, { ok: false, reason: 'Pin a location.' });
 });
 
+test('createInvite: public with an unknown venueId gets the open-invite reason, not "Pin a location."', () => {
+  const repo = fresh();
+  const result = repo.createInvite({
+    description: 'open invite, bogus venue',
+    venueId: 'v_does_not_exist',
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'public' },
+  });
+  assert.deepEqual(result, {
+    ok: false,
+    reason: 'Open invites must be at a listed venue -- private places need a private invite.',
+  });
+});
+
+test('createInvite: private location must be finite, in-range coordinates', () => {
+  const repo = fresh();
+  const cases = [
+    { lat: NaN, lng: -122.42 },
+    { lat: 37.76, lng: Infinity },
+    { lat: 91, lng: -122.42 },
+    { lat: 37.76, lng: 181 },
+    { lat: -91, lng: -122.42 },
+    { lat: 37.76, lng: -181 },
+  ];
+  for (const location of cases) {
+    const result = repo.createInvite({
+      description: 'private, bad location',
+      location,
+      capacity: { mode: 'uncapped' },
+      access: { mode: 'private' },
+    });
+    assert.deepEqual(result, { ok: false, reason: 'Pin a location.' }, JSON.stringify(location));
+  }
+
+  const valid = repo.createInvite({
+    description: 'private, valid location',
+    location: { lat: 37.76, lng: -122.42 },
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'private' },
+  });
+  assert.equal(valid.ok, true);
+});
+
 test('off clears the fix; re-enabling live republishes the seeded device fix', () => {
   const repo = fresh();
   assert.equal(repo.setLiveStatus('off').ok, true);
