@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { useCommands, useView } from '@/data/DataContext';
+import { useCommands, useDemoControls, useView } from '@/data/DataContext';
 import type { AccountType, LiveStatus } from '@/domain/types';
 import { Avatar, avatarUserOf, type AvatarUser } from '@/ui/components/Avatar';
 import { InviteCard } from '@/ui/components/InviteBits';
@@ -14,6 +14,7 @@ import { timeAgo } from '@/ui/time';
 export default function ProfileScreen() {
   const commands = useCommands();
   const view = useView();
+  const demo = useDemoControls();
   const router = useRouter();
   const self = view.self;
   const hosted = view.invites.filter((i) => i.viewer.relation === 'host');
@@ -121,6 +122,25 @@ export default function ProfileScreen() {
           <Logo size={140} />
           <Small>func · prototype · mocked data</Small>
           <Button small variant="ghost" label="Reset demo data" onPress={() => { commands.reset(); router.replace('/'); }} />
+          {demo ? (
+            <View style={{ width: '100%', gap: space.sm, marginTop: space.md, alignItems: 'center' }}>
+              <Eyebrow>Demo persona (simulation only)</Eyebrow>
+              <Row gap={6} style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
+                {demo.personas().map((p) => (
+                  <Button
+                    key={p.id}
+                    small
+                    variant={p.id === self.id ? 'primary' : 'secondary'}
+                    label={p.label}
+                    onPress={() => {
+                      const r = demo.switchPersona(p.id);
+                      if (!r.ok) Alert.alert('Switch persona', r.reason);
+                    }}
+                  />
+                ))}
+              </Row>
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </Screen>
