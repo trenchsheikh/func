@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useView } from '@/data/DataContext';
 import { Avatar, AvatarStack, avatarUserOf } from '@/ui/components/Avatar';
 import { GoingStack, InviteActions, InviteCover, InviteMeta } from '@/ui/components/InviteBits';
-import { Body, Button, Card, Empty, Eyebrow, Row, Screen, Small } from '@/ui/components/Primitives';
+import { Body, Button, Empty, Eyebrow, GlassCard, Row, Screen, Small } from '@/ui/components/Primitives';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
 import { space } from '@/ui/theme';
 import { timeAgo, whenLabel } from '@/ui/time';
@@ -54,15 +54,15 @@ export default function InviteDetail() {
         </Row>
         {detail.startsAt ? <Body>{whenLabel(detail.startsAt, now)}</Body> : null}
         <InviteMeta invite={detail} />
-        <Card style={{ gap: space.sm }}>
+        <GlassCard style={{ gap: space.sm }}>
           <Eyebrow>Who's going</Eyebrow>
           <GoingStack invite={detail} leads={attendeeLeads} />
           <AvatarStack users={attendeeLeads.map(avatarUserOf)} size={28} max={8} />
-        </Card>
-        <Card style={{ gap: space.sm }}>
+        </GlassCard>
+        <GlassCard style={{ gap: space.sm }}>
           <Eyebrow>{rel === 'host' ? "You're hosting" : rel === 'attending' ? "You're in" : detail.access.mode === 'public' ? 'Walk in' : 'Ask to join'}</Eyebrow>
           <InviteActions invite={detail} />
-        </Card>
+        </GlassCard>
         <Small>
           {rel === 'host'
             ? detail.access.mode === 'public'

@@ -4,7 +4,7 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useCommands, useView } from '@/data/DataContext';
 import type { RequestReviewItem } from '@/data/views';
 import { Avatar, AvatarStack, avatarUserOf } from '@/ui/components/Avatar';
-import { Body, Button, Card, Empty, Eyebrow, Pill, Row, Screen, Small } from '@/ui/components/Primitives';
+import { Body, Button, ChromeSurface, Empty, Eyebrow, Pill, Row, Screen, Small } from '@/ui/components/Primitives';
 import { ScreenHeader } from '@/ui/components/ScreenHeader';
 import { colors, radius, space } from '@/ui/theme';
 
@@ -52,7 +52,7 @@ export default function ReviewScreen() {
           const members = r.party.members;
           const tooBig = left != null && r.party.size > left;
           return (
-            <Card key={r.partyKey} style={{ gap: space.sm }}>
+            <ChromeSurface key={r.partyKey} style={{ gap: space.sm }}>
               <Row gap={space.md}>
                 <Avatar user={avatarUserOf(lead)} size={44} />
                 <View style={{ flex: 1 }}>
@@ -72,7 +72,7 @@ export default function ReviewScreen() {
                 <Button small variant="ghost" label="Deny" onPress={() => decide(r, 'denied')} style={{ flex: 1 }} />
                 <Button small variant="success" label="Accept" disabled={tooBig} onPress={() => decide(r, 'accepted')} style={{ flex: 1 }} />
               </Row>
-            </Card>
+            </ChromeSurface>
           );
         })}
 
