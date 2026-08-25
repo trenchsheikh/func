@@ -363,26 +363,56 @@ function buildSelfView(
   };
 }
 
+/**
+ * Resolves and validates every identity a thread depends on -- every
+ * participant group must exist and have a real lead user, and every
+ * message's sender must resolve to a real user who is a member of one of
+ * the thread's participant groups. Returns null (never a partial result,
+ * never a placeholder identity) if any of that fails: a malformed thread
+ * is a thread the viewer never sees, not one rendered with gaps.
+ */
+function resolveThreadIdentities(
+  s: Snapshot,
+  t: ChatThread,
+): { leads: FuncUser[]; senders: FuncUser[] } | null {
+  const leads: FuncUser[] = [];
+  const memberIds = new Set<string>();
+  for (const gid of t.participantGroupIds) {
+    const group = groupById(s, gid);
+    if (!group) return null;
+    const lead = userById(s, group.leadUserId);
+    if (!lead) return null;
+    leads.push(lead);
+    group.memberUserIds.forEach((id) => memberIds.add(id));
+  }
+
+  const senders: FuncUser[] = [];
+  for (const m of t.messages) {
+    const sender = userById(s, m.senderUserId);
+    if (!sender || !memberIds.has(sender.id)) return null;
+    senders.push(sender);
+  }
+
+  return { leads, senders };
+}
+
 function buildThread(
   s: Snapshot,
   t: ChatThread,
   addPerson: (u: FuncUser) => void,
-): ThreadView {
-  const participants = t.participantGroupIds
-    .map((gid) => groupLead(s, gid))
-    .filter((u): u is FuncUser => !!u);
-  participants.forEach(addPerson);
-  t.messages.forEach((m) => {
-    const sender = userById(s, m.senderUserId);
-    if (sender) addPerson(sender);
-  });
+): ThreadView | null {
+  const resolved = resolveThreadIdentities(s, t);
+  if (!resolved) return null;
+
+  resolved.leads.forEach(addPerson);
+  resolved.senders.forEach(addPerson);
 
   return {
     id: t.id,
     kind: t.kind,
     title: t.title,
     ...(t.poolInviteId ? { inviteId: t.poolInviteId } : {}),
-    participants: participants.map(personSummary),
+    participants: resolved.leads.map(personSummary),
     messages: t.messages.map((m) => ({ id: m.id, senderId: m.senderUserId, text: m.text, sentAt: m.sentAt })),
     lastActivity: lastActivity(t),
   };
@@ -431,7 +461,8 @@ export function viewFor(s: Snapshot, now: Date): ViewerSnapshot {
   const threads: ThreadView[] = s.threads
     .filter((t) => t.participantGroupIds.includes(ctx.viewerGroupId))
     .filter((t) => !t.poolInviteId || invitesById.has(t.poolInviteId))
-    .map((t) => buildThread(s, t, addPerson));
+    .map((t) => buildThread(s, t, addPerson))
+    .filter((t): t is ThreadView => t !== null);
 
   const joinBatches = s.invites
     .filter((invite) => invite.hostGroupId === ctx.viewerGroupId && invitesById.has(invite.id))

@@ -8,7 +8,7 @@ import test from 'node:test';
 import { buildSeed } from '../seed';
 import { viewFor } from '../views';
 import type { Snapshot } from '../repository';
-import type { ChatThread, PoolInvite } from '@/domain/types';
+import type { ChatThread, Group, PoolInvite } from '@/domain/types';
 
 const NOW = new Date('2026-08-23T20:00:00.000Z'); // matches the seed's "live as of now" liveStatusSince values
 
@@ -161,9 +161,11 @@ test('an unresolved reference fails closed -- no crash, no fabricated identity',
   assert.equal(ghostCard?.host.id, 'unknown');
   assert.notEqual(ghostCard?.where.kind, 'exact');
 
-  const ghostThreadView = view.threads.find((t) => t.id === 'thr_ghost');
-  assert.ok(ghostThreadView);
-  assert.ok(ghostThreadView?.participants.every((p) => p.id !== ghostGroupId));
+  // Stage 11 thread-integrity hardening: a thread with any unresolvable
+  // participant group is hidden entirely, not shown with that participant
+  // silently dropped from the list.
+  assert.equal(view.threads.some((t) => t.id === 'thr_ghost'), false);
+  assert.equal(view.people.has(ghostGroupId), false);
 });
 
 // ---------------------------------------------------------------------------
@@ -264,4 +266,151 @@ test('a hidden disclosure (e.g. an invalid location) also falls back to the gene
 test('authority is named as simulated, never claimed as server-verified', () => {
   const view = viewFor(buildSeed(NOW), NOW);
   assert.equal(view.authority, 'simulated');
+});
+
+// ---------------------------------------------------------------------------
+// Thread integrity (Stage 11 re-review blocker): a malformed ChatThread is
+// hidden entirely, never rendered with a fabricated or partial identity.
+// ---------------------------------------------------------------------------
+
+test('a well-formed thread with valid participants and message senders remains visible', () => {
+  const seed = buildSeed(NOW);
+  const validThread: ChatThread = {
+    id: 'thr_valid_custom',
+    kind: 'dm',
+    title: 'valid',
+    participantGroupIds: ['g_maya', 'g_theo'],
+    messages: [
+      { id: 'm1', senderUserId: 'u_maya', text: 'hi', sentAt: NOW.toISOString() },
+      { id: 'm2', senderUserId: 'u_theo', text: 'hey', sentAt: NOW.toISOString() },
+    ],
+  };
+  const snap: Snapshot = { ...seed, threads: [...seed.threads, validThread] };
+
+  const view = viewFor(snap, NOW);
+  const thread = view.threads.find((t) => t.id === 'thr_valid_custom');
+  assert.ok(thread);
+  assert.equal(thread?.participants.length, 2);
+  assert.deepEqual(thread?.messages.map((m) => m.senderId).sort(), ['u_maya', 'u_theo']);
+  assert.ok(view.people.has('u_maya'));
+  assert.ok(view.people.has('u_theo'));
+});
+
+test('a thread with any unresolvable participant group -- missing group, or a group whose lead does not resolve -- is hidden entirely', () => {
+  const seed = buildSeed(NOW);
+
+  const missingGroupThread: ChatThread = {
+    id: 'thr_missing_group',
+    kind: 'dm',
+    title: 'missing group',
+    participantGroupIds: ['g_maya', 'g_ghost_missing'],
+    messages: [],
+  };
+
+  const brokenLeadGroup: Group = {
+    id: 'g_broken_lead',
+    leadUserId: 'u_ghost_missing',
+    memberUserIds: ['u_ghost_missing'],
+  };
+  const brokenLeadThread: ChatThread = {
+    id: 'thr_broken_lead',
+    kind: 'dm',
+    title: 'broken lead',
+    participantGroupIds: ['g_maya', 'g_broken_lead'],
+    messages: [],
+  };
+
+  const snap: Snapshot = {
+    ...seed,
+    groups: [...seed.groups, brokenLeadGroup],
+    threads: [...seed.threads, missingGroupThread, brokenLeadThread],
+  };
+
+  const view = viewFor(snap, NOW);
+  assert.equal(view.threads.some((t) => t.id === 'thr_missing_group'), false);
+  assert.equal(view.threads.some((t) => t.id === 'thr_broken_lead'), false);
+});
+
+test('a thread with any unresolvable message sender is hidden entirely', () => {
+  const seed = buildSeed(NOW);
+  const missingSenderThread: ChatThread = {
+    id: 'thr_missing_sender',
+    kind: 'dm',
+    title: 'missing sender',
+    participantGroupIds: ['g_maya', 'g_theo'],
+    messages: [{ id: 'm1', senderUserId: 'u_ghost_missing', text: 'hi', sentAt: NOW.toISOString() }],
+  };
+  const snap: Snapshot = { ...seed, threads: [...seed.threads, missingSenderThread] };
+
+  const view = viewFor(snap, NOW);
+  assert.equal(view.threads.some((t) => t.id === 'thr_missing_sender'), false);
+});
+
+test('a thread whose message sender is a real user but not a member of any participant group is hidden entirely', () => {
+  const seed = buildSeed(NOW);
+  // Luca is a real seeded user, but not a member of g_maya or g_theo.
+  const foreignSenderThread: ChatThread = {
+    id: 'thr_foreign_sender',
+    kind: 'dm',
+    title: 'foreign sender',
+    participantGroupIds: ['g_maya', 'g_theo'],
+    messages: [{ id: 'm1', senderUserId: 'u_luca', text: 'hi', sentAt: NOW.toISOString() }],
+  };
+  const snap: Snapshot = { ...seed, threads: [...seed.threads, foreignSenderThread] };
+
+  const view = viewFor(snap, NOW);
+  assert.equal(view.threads.some((t) => t.id === 'thr_foreign_sender'), false);
+});
+
+test('no malformed participant or sender identity leaks into people or any thread\'s messages', () => {
+  const seed = buildSeed(NOW);
+  const brokenLeadGroup: Group = {
+    id: 'g_broken_lead_2',
+    leadUserId: 'u_ghost_missing_2',
+    memberUserIds: ['u_ghost_missing_2'],
+  };
+  const malformedThreads: ChatThread[] = [
+    { id: 'thr_bad_1', kind: 'dm', title: 'a', participantGroupIds: ['g_maya', 'g_ghost_missing'], messages: [] },
+    { id: 'thr_bad_2', kind: 'dm', title: 'b', participantGroupIds: ['g_maya', 'g_broken_lead_2'], messages: [] },
+    {
+      id: 'thr_bad_3',
+      kind: 'dm',
+      title: 'c',
+      participantGroupIds: ['g_maya', 'g_theo'],
+      messages: [{ id: 'm1', senderUserId: 'u_ghost_missing_3', text: 'hi', sentAt: NOW.toISOString() }],
+    },
+    {
+      id: 'thr_bad_4',
+      kind: 'dm',
+      title: 'd',
+      participantGroupIds: ['g_maya', 'g_theo'],
+      messages: [{ id: 'm1', senderUserId: 'u_luca', text: 'hi', sentAt: NOW.toISOString() }],
+    },
+  ];
+  const snap: Snapshot = {
+    ...seed,
+    groups: [...seed.groups, brokenLeadGroup],
+    threads: [...seed.threads, ...malformedThreads],
+  };
+
+  const view = viewFor(snap, NOW);
+
+  for (const bad of malformedThreads) {
+    assert.equal(view.threads.some((t) => t.id === bad.id), false, `${bad.id} must be hidden`);
+  }
+  // (thr_bad_1's bad id, g_ghost_missing, is a *group* id -- people only
+  // ever holds resolved user ids via addPerson, so it was never a candidate
+  // for leaking in here; the real regression risk is a user id, checked
+  // below for the other three malformed threads.)
+  assert.equal(view.people.has('u_ghost_missing_2'), false);
+  assert.equal(view.people.has('u_ghost_missing_3'), false);
+
+  // Every message senderId across every VISIBLE thread must be a person the
+  // view actually knows about -- no orphaned/fabricated sender ids leak
+  // through on a thread that otherwise passed validation.
+  for (const t of view.threads) {
+    for (const m of t.messages) {
+      assert.ok(view.people.has(m.senderId), `${t.id}'s message ${m.id} has an unknown senderId ${m.senderId}`);
+    }
+  }
 });
