@@ -1,21 +1,50 @@
 import type { LiveStatus, PriceTier, VenueCategory } from '@/domain/types';
 
 export const colors = {
-  bg: '#16161a',
+  // Identity foundation: true black surround with a barely-lifted near-black tile.
+  nearBlack: '#0b0b0c',
+  nearBlackDeep: '#000000',
+  bg: '#0b0b0c',
   surface: '#1f1f25',
   surfaceRaised: '#26262e',
   border: '#2e2e37',
+  borderSubtle: 'rgba(201, 201, 210, 0.18)',
+  borderStrong: '#66666d',
+  glass: 'rgba(31, 31, 37, 0.92)',
+  glassRaised: 'rgba(38, 38, 46, 0.96)',
   // Denser glass variants for the map screen's floating search bar and pin
   // preview card, which sit directly over live map content and need more
-  // opacity than a standard translucent surface.
+  // opacity than the standard glass surface.
   glassSearch: 'rgba(31, 31, 37, 0.94)',
   glassPreview: 'rgba(31, 31, 37, 0.97)',
   text: '#f2f2f5',
+  textPrimary: '#f2f2f5',
   muted: '#8d8d99',
+  textSecondary: '#8d8d99',
   faint: '#55555f',
+  textTertiary: '#55555f',
   accent: '#e8e8ee',
+  highlight: '#ffffff',
+  highlightSoft: '#e9e9eb',
   danger: '#ef4444',
   chrome: '#c9c9d2',
+  chromeBright: '#e9e9eb',
+  chromeMid: '#8e8e92',
+  chromeShadow: '#3b3b3e',
+
+  // Electric accents are named so they remain intentional and easy to audit.
+  electricCobalt: '#4f7cff',
+  electricViolet: '#8f6cff',
+  electricPink: '#ff4f9a',
+  electricCyan: '#33d6ff',
+  electricLime: '#c7f464',
+
+  // Daylight map fallback — pale geography with formal, readable overlays.
+  mapLand: '#eef3f8',
+  mapGrid: '#d5dee8',
+  mapOverlay: 'rgba(255, 255, 255, 0.94)',
+  mapText: '#253449',
+  mapTextMuted: '#62748a',
 
   // Category colours — locked. Green is reserved for DTF live status only.
   restaurant: '#e5484d',

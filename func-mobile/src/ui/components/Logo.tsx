@@ -1,5 +1,6 @@
 import React from 'react';
 import Svg, { Circle, ClipPath, Defs, G, Line, LinearGradient, Path, Stop } from 'react-native-svg';
+import { colors } from '../theme';
 
 /**
  * func mark: an eye/lens outline with a disco ball at the centre, hung from
@@ -21,8 +22,8 @@ export function Logo({ size = 120, color }: { size?: number; color?: string }) {
         <Path d={eye} stroke={c} strokeWidth={5} fill="none" strokeLinejoin="round" />
         <Line x1={50} y1={12.5} x2={50} y2={17} stroke={c} strokeWidth={3} />
         <Circle cx={50} cy={31} r={13} fill={c} />
-        <Line x1={37} y1={31} x2={63} y2={31} stroke="#16161a" strokeWidth={2} />
-        <Line x1={50} y1={18} x2={50} y2={44} stroke="#16161a" strokeWidth={2} />
+        <Line x1={37} y1={31} x2={63} y2={31} stroke={colors.nearBlack} strokeWidth={2} />
+        <Line x1={50} y1={18} x2={50} y2={44} stroke={colors.nearBlack} strokeWidth={2} />
       </Svg>
     );
   }
@@ -57,7 +58,7 @@ export function Logo({ size = 120, color }: { size?: number; color?: string }) {
       <Circle cx={cx} cy={cy - R - 1.2} r={1.6} stroke="#e6e6ec" strokeWidth={1} fill="none" />
       {/* ball */}
       <Circle cx={cx} cy={cy} r={R} fill="url(#ball)" />
-      <G clipPath="url(#ballClip)" stroke="#16161a" strokeWidth={0.8} opacity={0.75}>
+      <G clipPath="url(#ballClip)" stroke={colors.nearBlack} strokeWidth={0.8} opacity={0.75}>
         {grid.map((d) => (
           <Line key={`v${d}`} x1={cx + d} y1={cy - R} x2={cx + d} y2={cy + R} />
         ))}

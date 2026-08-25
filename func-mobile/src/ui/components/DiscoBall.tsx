@@ -1,10 +1,11 @@
 import React from 'react';
 import Svg, { Circle, ClipPath, Defs, G, Line, LinearGradient, Stop } from 'react-native-svg';
+import { colors } from '../theme';
 
 export type DiscoTint = 'silver' | 'green' | 'amber' | 'grey';
 
 const TINTS: Record<DiscoTint, [string, string, string]> = {
-  silver: ['#f4f4f8', '#b4b4c0', '#62626d'],
+  silver: [colors.chromeBright, colors.chromeMid, colors.chromeShadow],
   green: ['#dfffe9', '#8fd6a6', '#3a7a50'],
   amber: ['#ffe9c2', '#e0a84a', '#7a5520'],
   grey: ['#8a8a94', '#5f5f69', '#3a3a42'],
@@ -29,7 +30,7 @@ export function DiscoBall({ size = 22, tint = 'silver', ring }: { size?: number;
       </Defs>
       {ring ? <Circle cx={12} cy={12} r={11.3} stroke={ring} strokeWidth={1.4} fill="none" /> : null}
       <Circle cx={12} cy={12} r={R} fill={`url(#${id})`} />
-      <G clipPath={`url(#${id}-clip)`} stroke="#16161a" strokeWidth={0.7} opacity={0.7}>
+      <G clipPath={`url(#${id}-clip)`} stroke={colors.nearBlack} strokeWidth={0.7} opacity={0.7}>
         {[-6, -2, 2, 6].map((d) => (
           <Line key={`v${d}`} x1={12 + d} y1={2} x2={12 + d} y2={22} />
         ))}

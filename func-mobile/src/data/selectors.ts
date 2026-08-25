@@ -1,4 +1,5 @@
 import type { ChatThread, FuncUser, Group, PoolInvite } from '@/domain/types';
+import type { Relationship, ViewerContext } from '@/domain/visibility';
 import { pendingRequests } from '@/domain/pool';
 import type { Snapshot } from './repository';
 
@@ -29,6 +30,44 @@ export function myGroup(s: Snapshot): Group {
 
 export function partySizeOf(s: Snapshot): (groupId: string) => number {
   return (groupId) => groupById(s, groupId)?.memberUserIds.length ?? 1;
+}
+
+function edgeConnects(a: string, b: string, edge: Snapshot['friendships'][number]): boolean {
+  return (edge.a === a && edge.b === b) || (edge.a === b && edge.b === a);
+}
+
+function friendsOf(s: Snapshot, userId: string): string[] {
+  return s.friendships.flatMap((edge) => {
+    if (edge.a === userId) return [edge.b];
+    if (edge.b === userId) return [edge.a];
+    return [];
+  });
+}
+
+/** How many friends a user has — a count only, never the list of who they are. */
+export function friendCount(s: Snapshot, userId: string): number {
+  return friendsOf(s, userId).length;
+}
+
+/** Derive social distance from the separate graph; never infer it from a UI state. */
+export function relationshipOf(s: Snapshot, viewerId: string, subjectId: string): Relationship {
+  if (!userById(s, viewerId) || !userById(s, subjectId)) return 'unknown';
+  if (viewerId === subjectId) return 'self';
+  if (s.friendships.some((edge) => edgeConnects(viewerId, subjectId, edge))) return 'friend';
+  const subjectFriends = new Set(friendsOf(s, subjectId));
+  if (friendsOf(s, viewerId).some((friendId) => subjectFriends.has(friendId))) return 'mutual';
+  return 'none';
+}
+
+export function viewerContextOf(s: Snapshot, now: Date): ViewerContext {
+  const group = s.groups.find((candidate) => candidate.leadUserId === s.currentUserId);
+  return {
+    viewerUserId: s.currentUserId,
+    viewerGroupId: group?.id ?? '',
+    now,
+    relationshipTo: (subjectId) => relationshipOf(s, s.currentUserId, subjectId),
+    authority: 'simulated',
+  };
 }
 
 export function inviteById(s: Snapshot, id: string): PoolInvite | undefined {

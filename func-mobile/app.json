@@ -7,12 +7,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#16161a",
+    "backgroundColor": "#0b0b0c",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#16161a"
+      "backgroundColor": "#0b0b0c"
     },
     "ios": {
       "supportsTablet": false,
@@ -24,7 +24,7 @@
     "android": {
       "package": "app.func.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#16161a",
+        "backgroundColor": "#0b0b0c",
         "foregroundImage": "./assets/icon.png"
       }
     },

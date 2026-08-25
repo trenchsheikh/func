@@ -8,6 +8,15 @@ export const MAPBOX_TOKEN: string | null =
 
 export const hasMapboxToken = MAPBOX_TOKEN != null && MAPBOX_TOKEN.startsWith('pk.');
 
+/** Maintained daylight basemap selected for M2's bright map foundation. */
+export const MAP_STYLE_URL = 'mapbox://styles/mapbox/standard';
+export const MAP_STYLE_CONFIG = {
+  lightPreset: 'day',
+  theme: 'faded',
+  show3dObjects: true,
+  show3dBuildings: true,
+} as const;
+
 /** Where the camera starts. Demo content lives in SF; nothing else assumes it. */
 export const DEFAULT_CENTER = { lat: 37.7749, lng: -122.4194 };
 export const LOCAL_ZOOM = 12.4;

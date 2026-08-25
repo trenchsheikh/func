@@ -26,15 +26,58 @@ export function Eyebrow({ children, style }: { children: React.ReactNode; style?
   return <Text style={[font.tiny, style]}>{children}</Text>;
 }
 
-export function Card({ children, style, onPress }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void }) {
+export function Card({
+  children,
+  style,
+  onPress,
+  accessibilityLabel,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
+  accessibilityLabel?: string;
+}) {
   if (onPress) {
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.pressed, style]}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [styles.card, pressed && styles.pressed, style]}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+      >
         {children}
       </Pressable>
     );
   }
   return <View style={[styles.card, style]}>{children}</View>;
+}
+
+type SurfaceProps = { children: React.ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void; accessibilityLabel?: string };
+
+function Surface({ children, style, onPress, accessibilityLabel, surfaceStyle }: SurfaceProps & { surfaceStyle: ViewStyle }) {
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [surfaceStyle, pressed && styles.pressed, style]}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+      >
+        {children}
+      </Pressable>
+    );
+  }
+  return <View style={[surfaceStyle, style]}>{children}</View>;
+}
+
+/** Dark translucent material for information-first surfaces. */
+export function GlassCard(props: SurfaceProps) {
+  return <Surface {...props} surfaceStyle={styles.glassCard} />;
+}
+
+/** Neutral chrome-edged material; it carries no entitlement or account meaning. */
+export function ChromeSurface(props: SurfaceProps) {
+  return <Surface {...props} surfaceStyle={styles.chromeSurface} />;
 }
 
 export function Row({ children, style, gap = space.sm }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; gap?: number }) {
@@ -86,6 +129,8 @@ export function Button({
       disabled={disabled}
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      hitSlop={small ? { top: 6, bottom: 6, left: 4, right: 4 } : undefined}
       style={({ pressed }) => [
         styles.button,
         small && styles.buttonSmall,
@@ -152,6 +197,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: space.lg,
+  },
+  glassCard: {
+    backgroundColor: colors.glass,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    padding: space.lg,
+  },
+  chromeSurface: {
+    backgroundColor: colors.glassRaised,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.chromeMid,
     padding: space.lg,
   },
   pressed: { opacity: 0.8 },
