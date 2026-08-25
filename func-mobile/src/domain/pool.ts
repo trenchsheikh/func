@@ -29,19 +29,25 @@ function isValidPoolSize(n: unknown): n is number {
  * Seats taken = attendees (host excluded) by party size. The party size lives
  * on the group's request record when there is one (both private requests and
  * public joins record one), else falls back to the group's member count.
- * Non-finite, fractional, non-positive, or excessive persisted party sizes
- * are dropped from the count rather than propagated -- a single corrupt
- * value must not turn every downstream capacity check into NaN, which
- * compares false against everything and would silently defeat the cap.
+ * If any accepted attendee's party size is non-finite, fractional,
+ * non-positive, or excessive, the true occupancy is unknown and possibly
+ * unbounded -- treating it as 0 would *undercount* seats taken and let
+ * seatsLeft/isFull silently over-report room. Instead this returns +Infinity,
+ * which is not NaN (comparisons with it are well-defined) and, subtracted
+ * from any valid capacity.max in seatsLeft, always floors to 0 seats left --
+ * failing closed to "full" for capped invites, exactly like an invalid
+ * capacity.max already does.
  */
 export function seatsTaken(invite: PoolInvite, partySizeOf: (groupId: string) => number): number {
-  return invite.attendeeGroupIds
-    .filter((g) => g !== invite.hostGroupId)
-    .reduce((sum, g) => {
-      const rec = invite.requests.find((r) => r.requestingGroupId === g && r.status === 'accepted');
-      const size = rec?.partySize ?? partySizeOf(g);
-      return sum + (isValidPoolSize(size) ? size : 0);
-    }, 0);
+  let sum = 0;
+  for (const g of invite.attendeeGroupIds) {
+    if (g === invite.hostGroupId) continue;
+    const rec = invite.requests.find((r) => r.requestingGroupId === g && r.status === 'accepted');
+    const size = rec?.partySize ?? partySizeOf(g);
+    if (!isValidPoolSize(size)) return Number.POSITIVE_INFINITY;
+    sum += size;
+  }
+  return sum;
 }
 
 /** Party size a group is attending with (request record first, group size otherwise). */

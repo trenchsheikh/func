@@ -63,14 +63,46 @@ test('MAX_POOL_SIZE is a conservative, documented, positive integer bound', () =
   assert.ok(Number.isInteger(MAX_POOL_SIZE) && MAX_POOL_SIZE > 0);
 });
 
-test('seatsTaken ignores non-finite, fractional, non-positive, or excessive party sizes instead of propagating them', () => {
+test('seatsTaken fails closed to +Infinity (never 0, never NaN) when any accepted attendee has an invalid party size', () => {
+  // An undercount (treating a corrupt attendee as 0) would make seatsLeft
+  // over-report room for a capped invite -- the true occupancy is unknown
+  // and possibly unbounded, so seatsTaken must signal "unsafe", not "empty".
   for (const bad of BAD_SIZES) {
     const inv = capInvite({
       attendeeGroupIds: ['g_host', 'g_bad'],
       requests: [{ requestingGroupId: 'g_bad', partySize: bad, status: 'accepted' }],
     });
-    assert.equal(seatsTaken(inv, () => 1), 0, `bad party size ${bad} should not be counted`);
+    const taken = seatsTaken(inv, () => 1);
+    assert.equal(taken, Number.POSITIVE_INFINITY, `bad party size ${bad} must make seatsTaken unsafe, not 0`);
   }
+});
+
+test('a single corrupt accepted attendee among otherwise-valid ones still fails seatsTaken closed', () => {
+  const inv = capInvite({
+    attendeeGroupIds: ['g_host', 'g_a', 'g_bad', 'g_b'],
+    requests: [
+      { requestingGroupId: 'g_a', partySize: 2, status: 'accepted' },
+      { requestingGroupId: 'g_bad', partySize: Number.NaN, status: 'accepted' },
+      { requestingGroupId: 'g_b', partySize: 3, status: 'accepted' },
+    ],
+  });
+  assert.equal(seatsTaken(inv, () => 1), Number.POSITIVE_INFINITY);
+});
+
+test('regression: a corrupt accepted attendee blocks a capped invite -- seatsLeft is 0 and isFull rejects any incoming party', () => {
+  const inv = capInvite({
+    capacity: { mode: 'capped', max: 10 },
+    attendeeGroupIds: ['g_host', 'g_a', 'g_corrupt'],
+    requests: [
+      { requestingGroupId: 'g_a', partySize: 2, status: 'accepted' },
+      // Corrupt persisted data: e.g. tampered or migrated-badly. Undercounting
+      // this to 0 would report 8 seats left (10 - 2) and let a new party walk
+      // straight in past a cap the host actually set.
+      { requestingGroupId: 'g_corrupt', partySize: Number.NaN, status: 'accepted' },
+    ],
+  });
+  assert.equal(seatsLeft(inv, () => 1), 0);
+  assert.equal(isFull(inv, () => 1, 1), true, 'even a party of 1 must be refused');
 });
 
 test('seatsTaken sums only valid accepted party sizes, falling back to group size when there is no request record', () => {
