@@ -166,6 +166,101 @@ test('an unresolved reference fails closed -- no crash, no fabricated identity',
   assert.ok(ghostThreadView?.participants.every((p) => p.id !== ghostGroupId));
 });
 
+// ---------------------------------------------------------------------------
+// Authored invite text disclosure (Stage 11, reviewer finding 1 / D4): the
+// description is shown only to a viewer who already has an exact location
+// disclosure -- everyone else gets the generic "Private plan" label.
+// ---------------------------------------------------------------------------
+
+test('a private invite\'s host and its accepted attendee both see the real authored description', () => {
+  const snap = buildSeed(NOW);
+  const realDescription = 'Afters at mine after Audiowave — rooftop, bring a jacket 🧥';
+
+  const mayaView = viewFor(snap, NOW); // Maya hosts inv_afters (private, unanchored)
+  const aftersAsHost = mayaView.invites.find((c) => c.id === 'inv_afters');
+  assert.equal(aftersAsHost?.viewer.relation, 'host');
+  assert.equal(aftersAsHost?.where.kind, 'exact');
+  assert.equal(aftersAsHost?.description, realDescription);
+  // InviteDetailView must carry the same disclosed description as the card.
+  assert.equal(mayaView.inviteDetails.get('inv_afters')?.description, realDescription);
+
+  const sashaView = viewFor({ ...snap, currentUserId: 'u_sasha' }, NOW); // Sasha is an accepted attendee
+  const aftersAsAttendee = sashaView.invites.find((c) => c.id === 'inv_afters');
+  assert.equal(aftersAsAttendee?.viewer.relation, 'attending');
+  assert.equal(aftersAsAttendee?.where.kind, 'exact');
+  assert.equal(aftersAsAttendee?.description, realDescription);
+});
+
+test('a pending requester, a denied requester, and an unrelated viewer all see the generic "Private plan" label on a private invite', () => {
+  const snap = buildSeed(NOW);
+
+  const theoView = viewFor({ ...snap, currentUserId: 'u_theo' }, NOW); // Theo is pending on inv_afters
+  const aftersAsPending = theoView.invites.find((c) => c.id === 'inv_afters');
+  assert.equal(aftersAsPending?.viewer.relation, 'requested');
+  assert.notEqual(aftersAsPending?.where.kind, 'exact');
+  assert.equal(aftersAsPending?.description, 'Private plan');
+
+  const junView = viewFor({ ...snap, currentUserId: 'u_jun' }, NOW); // Jun has no tie to inv_afters at all
+  const aftersAsUnrelated = junView.invites.find((c) => c.id === 'inv_afters');
+  assert.equal(aftersAsUnrelated?.viewer.relation, 'none');
+  assert.notEqual(aftersAsUnrelated?.where.kind, 'exact');
+  assert.equal(aftersAsUnrelated?.description, 'Private plan');
+
+  // Denied isn't seeded on any invite, so deny Theo's own pending request and
+  // re-view as him.
+  const denied: Snapshot = {
+    ...snap,
+    invites: snap.invites.map((i) =>
+      i.id !== 'inv_afters'
+        ? i
+        : {
+            ...i,
+            requests: i.requests.map((r) =>
+              r.requestingGroupId === 'g_theo' ? { ...r, status: 'denied' as const } : r,
+            ),
+          },
+    ),
+  };
+  const theoDeniedView = viewFor({ ...denied, currentUserId: 'u_theo' }, NOW);
+  const aftersAsDenied = theoDeniedView.invites.find((c) => c.id === 'inv_afters');
+  assert.equal(aftersAsDenied?.viewer.relation, 'denied');
+  assert.notEqual(aftersAsDenied?.where.kind, 'exact');
+  assert.equal(aftersAsDenied?.description, 'Private plan');
+});
+
+test('a public venue-anchored invite keeps its real description for a totally unrelated outsider', () => {
+  const junView = viewFor({ ...buildSeed(NOW), currentUserId: 'u_jun' }, NOW); // Jun: no tie to inv_karaoke
+  const karaoke = junView.invites.find((c) => c.id === 'inv_karaoke');
+  assert.equal(karaoke?.viewer.relation, 'none');
+  assert.equal(karaoke?.access.mode, 'public');
+  assert.equal(karaoke?.where.kind, 'exact');
+  assert.equal(karaoke?.description, 'Private karaoke room on Nob Hill, 8 spots, we sing badly');
+});
+
+test('a hidden disclosure (e.g. an invalid location) also falls back to the generic label, never the authored text', () => {
+  const seed = buildSeed(NOW);
+  const brokenInvite: PoolInvite = {
+    id: 'inv_broken_location',
+    hostGroupId: 'g_luca',
+    description: 'Should never be shown -- location is corrupt',
+    location: { lat: Number.NaN, lng: -122.42 },
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'private' },
+    requests: [],
+    attendeeGroupIds: ['g_luca'],
+    groupChatId: 'thr_broken',
+    createdByAccountType: 'personal',
+    createdAt: NOW.toISOString(),
+  };
+  const malformed: Snapshot = { ...seed, invites: [...seed.invites, brokenInvite] };
+
+  const view = viewFor(malformed, NOW);
+  const card = view.invites.find((c) => c.id === 'inv_broken_location');
+  assert.ok(card);
+  assert.equal(card?.where.kind, 'hidden');
+  assert.equal(card?.description, 'Private plan');
+});
+
 test('authority is named as simulated, never claimed as server-verified', () => {
   const view = viewFor(buildSeed(NOW), NOW);
   assert.equal(view.authority, 'simulated');

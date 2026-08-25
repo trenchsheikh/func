@@ -206,6 +206,21 @@ function partyOf(
   };
 }
 
+/** Shown in place of the host's authored text to any audience that isn't entitled to it (Stage 11, reviewer finding 1 / D4). */
+const GENERIC_INVITE_DESCRIPTION = 'Private plan';
+
+/**
+ * Authored invite text is only for audiences who already have the exact
+ * location disclosed -- an area label or hidden disclosure must not leak
+ * the host's own words either. Reuses `where` (the same InviteLocationDisclosure
+ * already computed for the card) rather than re-deriving relation/venue
+ * logic here, so this stays in lockstep with wherever a coordinate is or
+ * isn't shown.
+ */
+function disclosedDescription(invite: PoolInvite, where: InviteLocationDisclosure): string {
+  return where.kind === 'exact' ? invite.description : GENERIC_INVITE_DESCRIPTION;
+}
+
 function buildInviteCard(
   s: Snapshot,
   invite: PoolInvite,
@@ -213,9 +228,10 @@ function buildInviteCard(
   ctx: ViewerContext,
   relation: ViewerInviteRelation,
 ): InviteCardView {
+  const where = inviteDisclosure(ctx, invite, host, s.venues, relation);
   return {
     id: invite.id,
-    description: invite.description,
+    description: disclosedDescription(invite, where),
     createdAt: invite.createdAt,
     ...(invite.startsAt ? { startsAt: invite.startsAt } : {}),
     access: invite.access,
@@ -224,7 +240,7 @@ function buildInviteCard(
     goingCount: goingCount(s, invite),
     hostedByVerifiedBusiness: invite.createdByAccountType === 'business',
     host: hostPersonSummary(invite, host),
-    where: inviteDisclosure(ctx, invite, host, s.venues, relation),
+    where,
     viewer: { relation },
   };
 }
