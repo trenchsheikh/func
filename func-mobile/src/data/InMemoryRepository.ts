@@ -281,6 +281,12 @@ export class InMemoryRepository implements FuncRepository {
   }
 
   joinInvite(inviteId: string, partySize: number): CommandResult {
+    // Business personas may host Pools (via canCreateInviteAs, above) but
+    // never join or request one -- verified or not, this is about the acting
+    // persona, not the account's verification status.
+    if (this.me().activeProfile === 'business') {
+      return { ok: false, reason: 'Business accounts cannot join or request Pools.' };
+    }
     const invite = this.snapshot.invites.find((i) => i.id === inviteId);
     if (!invite) return { ok: false, reason: 'Invite not found.' };
     if (invite.access.mode !== 'public') {
@@ -307,6 +313,12 @@ export class InMemoryRepository implements FuncRepository {
   }
 
   requestToJoin(inviteId: string, partySize: number, message?: string): CommandResult {
+    // Business personas may host Pools (via canCreateInviteAs, above) but
+    // never join or request one -- verified or not, this is about the acting
+    // persona, not the account's verification status.
+    if (this.me().activeProfile === 'business') {
+      return { ok: false, reason: 'Business accounts cannot join or request Pools.' };
+    }
     const invite = this.snapshot.invites.find((i) => i.id === inviteId);
     if (!invite) return { ok: false, reason: 'Invite not found.' };
     if (invite.access.mode !== 'private') {

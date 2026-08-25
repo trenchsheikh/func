@@ -95,6 +95,61 @@ test('private invite: request stays pending until host reviews; message delivere
   assert.equal(pendingRequests(inv).length, 1);
 });
 
+test('a verified business persona cannot join a public invite or request a private one', () => {
+  const repo = fresh();
+  assert.equal(repo.demo.switchPersona('u_wren').ok, true); // Wren: already active as a verified business
+  const me = repo.getSnapshot().users.find((u) => u.id === 'u_wren')!;
+  assert.equal(me.activeProfile, 'business');
+  assert.equal(me.businessProfile?.verification.status, 'verified');
+  const before = repo.getSnapshot();
+
+  const join = repo.joinInvite('inv_warehouse', 1);
+  assert.equal(join.ok, false);
+  if (join.ok) throw new Error('expected failure');
+  assert.equal(join.reason, 'Business accounts cannot join or request Pools.');
+
+  const request = repo.requestToJoin('inv_dinner', 1);
+  assert.equal(request.ok, false);
+  if (request.ok) throw new Error('expected failure');
+  assert.equal(request.reason, 'Business accounts cannot join or request Pools.');
+
+  assert.deepEqual(repo.getSnapshot().invites, before.invites, 'no capacity/request mutation should occur');
+});
+
+test('an unverified business persona also cannot join a public invite or request a private one', () => {
+  const repo = fresh();
+  assert.equal(repo.switchProfile('business').ok, true); // Maya: unverified business
+  const me = repo.getSnapshot().users.find((u) => u.id === 'u_maya')!;
+  assert.equal(me.activeProfile, 'business');
+  assert.equal(me.businessProfile?.verification.status, 'unverified');
+  const before = repo.getSnapshot();
+
+  const join = repo.joinInvite('inv_warehouse', 1);
+  assert.equal(join.ok, false);
+  if (join.ok) throw new Error('expected failure');
+  assert.equal(join.reason, 'Business accounts cannot join or request Pools.');
+
+  const request = repo.requestToJoin('inv_dinner', 1);
+  assert.equal(request.ok, false);
+  if (request.ok) throw new Error('expected failure');
+  assert.equal(request.reason, 'Business accounts cannot join or request Pools.');
+
+  assert.deepEqual(repo.getSnapshot().invites, before.invites, 'no capacity/request mutation should occur');
+});
+
+test('a personal persona can still join a public invite and request a private one', () => {
+  const repo = fresh(); // Maya, personal by default
+  const gid = myGroup(repo.getSnapshot()).id;
+
+  assert.equal(repo.joinInvite('inv_warehouse', 1).ok, true);
+  let s = repo.getSnapshot();
+  assert.equal(relationTo(s.invites.find((i) => i.id === 'inv_warehouse')!, gid), 'attending');
+
+  assert.equal(repo.requestToJoin('inv_dinner', 1).ok, true);
+  s = repo.getSnapshot();
+  assert.equal(relationTo(s.invites.find((i) => i.id === 'inv_dinner')!, gid), 'requested');
+});
+
 test('host cannot accept past the cap', () => {
   const repo = fresh();
   // afters: max 12, sasha(2) attending. accept noor(3), theo(2) -> 7 taken, 5 left.
