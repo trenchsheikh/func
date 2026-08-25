@@ -58,7 +58,10 @@ test('map projection surfaces a verified business as a business pin, never the o
   const businessPins = mapPins(view).filter((pin) => pin.kind === 'business');
   const ids = new Set(businessPins.map((pin) => pin.id));
 
-  assert.ok(ids.has('business:u_wren'), 'Audiowave\'s verified operator must appear as a business pin');
+  // Stage 11 persona hardening: the pin key is now the opaque venue persona
+  // id (biz:<venueId>), never the raw operator FuncUser id (u_wren).
+  assert.ok(ids.has('business:biz:v_audiowave'), 'Audiowave must appear as a business pin, keyed by its venue persona');
+  assert.equal(ids.has('business:u_wren'), false, 'the operator\'s raw FuncUser id must never be the pin key');
   for (const pin of businessPins) {
     assert.equal('user' in pin, false);
     assert.ok('venue' in pin);

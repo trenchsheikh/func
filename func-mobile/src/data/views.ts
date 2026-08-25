@@ -1,4 +1,4 @@
-import type { AccountType, ChatThread, FuncUser, Group, LatLng, LiveStatus, PoolInvite, VerificationStatus } from '@/domain/types';
+import type { AccountType, ChatThread, FuncUser, Group, LatLng, LiveStatus, PoolInvite, VerificationStatus, Venue } from '@/domain/types';
 import type { InviteLocationDisclosure, ViewerContext, ViewerInviteRelation, PersonDisclosure } from '@/domain/visibility';
 import { inviteDisclosure, isVerifiedBusiness, personDisclosure, venueGlow } from '@/domain/visibility';
 import { attendingPartySize, pendingRequests, relationTo, seatsLeft as inviteSeatsLeft } from '@/domain/pool';
@@ -6,10 +6,16 @@ import { canUseLiveStatus, isPresenceLive } from '@/domain/liveStatus';
 import type { Snapshot } from './repository';
 import { groupById, groupLead, lastActivity, partySizeOf, pendingMessageRequests, userById, viewerContextOf } from './selectors';
 
-/** The only identity shape the UI ever sees. */
+/**
+ * The only identity shape the UI ever sees. For a verified business acting
+ * as itself (or referenced as the host of a business-created invite), every
+ * field here is an opaque venue persona -- id, handle, and photo included,
+ * never the operator's own -- see `venuePersona` (Stage 11, reviewer
+ * finding 5, bounded part 1).
+ */
 export interface PersonSummary {
   readonly id: string;
-  /** The person's display name -- or the venue name when the account is ACTING as a simulated-verified business (the operator's personal name never leaves the data layer). */
+  /** The person's display name -- or the venue name for a business persona. */
   readonly displayName: string;
   readonly handle: string;
   /** Avatar descriptor ('mono:<hex>' in the prototype). */
@@ -130,7 +136,7 @@ export interface ViewerSnapshot {
   readonly authority: 'simulated' | 'server';
   readonly self: SelfView;
   readonly people: ReadonlyMap<string, PersonSummary>;
-  readonly venues: readonly import('@/domain/types').Venue[];
+  readonly venues: readonly Venue[];
   readonly invites: readonly InviteCardView[];
   readonly inviteDetails: ReadonlyMap<string, InviteDetailView>;
   readonly presence: readonly PresenceItem[];
@@ -149,30 +155,60 @@ function unknownPerson(): PersonSummary {
   return { id: 'unknown', displayName: 'Unknown', handle: '', photo: '' };
 }
 
-function personSummary(user: FuncUser): PersonSummary {
-  const acting = user.activeProfile === 'business' && isVerifiedBusiness(user);
+/**
+ * Deterministic, non-cryptographic hash -> a stable hex color per venue id,
+ * so every venue persona gets a consistent avatar swatch that carries no
+ * information about the operator behind it.
+ */
+function venueColorHex(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  }
+  return `#${(hash >>> 0).toString(16).padStart(6, '0').slice(-6)}`;
+}
+
+/**
+ * A verified business's opaque public identity -- derived entirely from its
+ * resolved Venue record, never from the operator's FuncUser. id/handle/photo
+ * are all venue-scoped; only displayName (the venue name) was ever public
+ * before this. The single construction point for the venue persona, so
+ * every surface that shows one (presence, invite hosting, self-view,
+ * thread participants, and host-group messages) stays in lockstep.
+ */
+function venuePersona(venue: Venue): PersonSummary {
+  return {
+    id: `biz:${venue.id}`,
+    displayName: venue.name,
+    handle: venue.id.replace(/^v_/, ''),
+    photo: `mono:${venueColorHex(venue.id)}`,
+    verifiedBusiness: { venueName: venue.name },
+  };
+}
+
+function personSummary(user: FuncUser, venues: readonly Venue[]): PersonSummary {
+  if (user.activeProfile === 'business' && isVerifiedBusiness(user) && user.businessProfile) {
+    const venue = venues.find((v) => v.name === user.businessProfile!.venueName);
+    // Fail closed to the existing unknown projection rather than falling
+    // back to any operator data if the venue itself can't be resolved.
+    return venue ? venuePersona(venue) : unknownPerson();
+  }
   return {
     id: user.id,
-    displayName: acting ? user.businessProfile!.venueName : user.personalProfile.displayName,
+    displayName: user.personalProfile.displayName,
     handle: user.handle,
     photo: user.personalProfile.photo,
-    ...(acting ? { verifiedBusiness: { venueName: user.businessProfile!.venueName } } : {}),
   };
 }
 
 /** Host identity follows the profile the invite was created under, not the host's current one. */
-function hostPersonSummary(invite: PoolInvite, host: FuncUser | undefined): PersonSummary {
+function hostPersonSummary(invite: PoolInvite, host: FuncUser | undefined, venues: readonly Venue[]): PersonSummary {
   if (!host) return unknownPerson();
   if (invite.createdByAccountType === 'business' && host.businessProfile) {
-    return {
-      id: host.id,
-      displayName: host.businessProfile.venueName,
-      handle: host.handle,
-      photo: host.personalProfile.photo,
-      verifiedBusiness: { venueName: host.businessProfile.venueName },
-    };
+    const venue = venues.find((v) => v.name === host.businessProfile!.venueName);
+    return venue ? venuePersona(venue) : unknownPerson();
   }
-  return personSummary(host);
+  return personSummary(host, venues);
 }
 
 /** A business-hosted invite is hidden entirely once its verification is revoked. */
@@ -201,8 +237,8 @@ function partyOf(
   members.forEach(addPerson);
   return {
     size,
-    lead: lead ? personSummary(lead) : unknownPerson(),
-    members: members.map(personSummary),
+    lead: lead ? personSummary(lead, s.venues) : unknownPerson(),
+    members: members.map((u) => personSummary(u, s.venues)),
   };
 }
 
@@ -239,7 +275,7 @@ function buildInviteCard(
     seatsLeft: inviteSeatsLeft(invite, partySizeOf(s)),
     goingCount: goingCount(s, invite),
     hostedByVerifiedBusiness: invite.createdByAccountType === 'business',
-    host: hostPersonSummary(invite, host),
+    host: hostPersonSummary(invite, host, s.venues),
     where,
     viewer: { relation },
   };
@@ -353,11 +389,16 @@ function buildSelfView(
     .filter((r) => r.fromUserId === self.id && r.status === 'pending')
     .map((r) => r.toUserId);
 
+  // While acting as a verified business (venue resolving), the viewer's own
+  // identity is the same opaque venue persona everyone else sees them as --
+  // never a mix of "my real id" and "my venue name".
+  const selfSummary = personSummary(self, s.venues);
+
   return {
-    id: self.id,
-    displayName: self.personalProfile.displayName,
-    handle: self.handle,
-    photo: self.personalProfile.photo,
+    id: selfSummary.id,
+    displayName: selfSummary.displayName,
+    handle: selfSummary.handle,
+    photo: selfSummary.photo,
     activeProfile: self.activeProfile,
     liveStatus: self.personalProfile.liveStatus,
     isLive: isPresenceLive(self.personalProfile, now),
@@ -368,8 +409,8 @@ function buildSelfView(
       : {}),
     party: {
       size: memberList.length,
-      lead: personSummary(self),
-      members: memberList.map(personSummary),
+      lead: selfSummary,
+      members: memberList.map((u) => personSummary(u, s.venues)),
     },
     stories,
     pendingMessageRequestsTo,
@@ -409,6 +450,33 @@ function resolveThreadIdentities(
   return { leads, senders };
 }
 
+/**
+ * A pool thread whose invite was created by a verified business attributes
+ * every message from a member of the host's own group to that one, stable
+ * venue persona -- derived once from the host here, never re-derived per
+ * message or per session. Returns null if this thread isn't a
+ * business-hosted pool thread at all (personal threads are untouched).
+ *
+ * This uses `personSummary` (gated on the host's CURRENT activeProfile),
+ * not `hostPersonSummary`'s "follows the profile the invite was created
+ * under" rule -- they can only agree because this function is only ever
+ * reached for a thread whose invite already passed `inviteVisible`, which
+ * itself requires the host to be currently verified. If that gate ever
+ * changes, re-check this function and `hostPersonSummary` together.
+ */
+function hostGroupPersona(
+  s: Snapshot,
+  t: ChatThread,
+): { summary: PersonSummary; memberIds: ReadonlySet<string> } | null {
+  if (!t.poolInviteId) return null;
+  const invite = s.invites.find((i) => i.id === t.poolInviteId);
+  if (!invite || invite.createdByAccountType !== 'business') return null;
+  const hostGroup = groupById(s, invite.hostGroupId);
+  const hostUser = hostGroup ? userById(s, hostGroup.leadUserId) : undefined;
+  if (!hostGroup || !hostUser) return null;
+  return { summary: personSummary(hostUser, s.venues), memberIds: new Set(hostGroup.memberUserIds) };
+}
+
 function buildThread(
   s: Snapshot,
   t: ChatThread,
@@ -420,13 +488,21 @@ function buildThread(
   resolved.leads.forEach(addPerson);
   resolved.senders.forEach(addPerson);
 
+  const hostPersona = hostGroupPersona(s, t);
+
   return {
     id: t.id,
     kind: t.kind,
     title: t.title,
     ...(t.poolInviteId ? { inviteId: t.poolInviteId } : {}),
-    participants: resolved.leads.map(personSummary),
-    messages: t.messages.map((m) => ({ id: m.id, senderId: m.senderUserId, text: m.text, sentAt: m.sentAt })),
+    participants: resolved.leads.map((u) => personSummary(u, s.venues)),
+    messages: t.messages.map((m) => ({
+      id: m.id,
+      senderId:
+        hostPersona && hostPersona.memberIds.has(m.senderUserId) ? hostPersona.summary.id : m.senderUserId,
+      text: m.text,
+      sentAt: m.sentAt,
+    })),
     lastActivity: lastActivity(t),
   };
 }
@@ -441,9 +517,18 @@ export function viewFor(s: Snapshot, now: Date): ViewerSnapshot {
   const selfUser = userById(s, s.currentUserId);
   if (!selfUser) throw new Error('current user missing');
 
+  // Keyed by the *projected* id (a verified business's opaque persona id,
+  // not FuncUser.id) -- that's the same id PersonSummary.id/MessageView.senderId
+  // carry, so `people.get(...)` lookups against those fields resolve. Two
+  // different verified businesses whose venues both fail to resolve would
+  // collapse onto the same 'unknown' entry here (first writer wins) -- an
+  // accepted tradeoff, since unknownPerson() carries no per-subject data to
+  // lose by colliding, mirroring the pre-existing unknownPerson() fallback
+  // used elsewhere in this file for other dangling references.
   const people = new Map<string, PersonSummary>();
   const addPerson = (u: FuncUser) => {
-    if (!people.has(u.id)) people.set(u.id, personSummary(u));
+    const summary = personSummary(u, s.venues);
+    if (!people.has(summary.id)) people.set(summary.id, summary);
   };
   addPerson(selfUser);
 
@@ -466,7 +551,7 @@ export function viewFor(s: Snapshot, now: Date): ViewerSnapshot {
     const disclosure = personDisclosure(ctx, u, s.venues);
     if (disclosure.kind === 'none') continue;
     addPerson(u);
-    presence.push({ person: personSummary(u), disclosure });
+    presence.push({ person: personSummary(u, s.venues), disclosure });
   }
 
   const glowVenueIds = venueGlow(ctx, s.users, s.venues);
@@ -487,7 +572,7 @@ export function viewFor(s: Snapshot, now: Date): ViewerSnapshot {
         .filter((u): u is FuncUser => !!u)
         .map((u) => {
           addPerson(u);
-          return personSummary(u);
+          return personSummary(u, s.venues);
         }),
     }))
     .filter((batch) => batch.pendingCount > 0);
@@ -498,7 +583,7 @@ export function viewFor(s: Snapshot, now: Date): ViewerSnapshot {
       if (from) addPerson(from);
       return {
         id: r.id,
-        from: from ? personSummary(from) : unknownPerson(),
+        from: from ? personSummary(from, s.venues) : unknownPerson(),
         text: r.text,
         createdAt: r.createdAt,
       };

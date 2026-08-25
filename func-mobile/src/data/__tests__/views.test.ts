@@ -8,7 +8,7 @@ import test from 'node:test';
 import { buildSeed } from '../seed';
 import { viewFor } from '../views';
 import type { Snapshot } from '../repository';
-import type { ChatThread, Group, PoolInvite } from '@/domain/types';
+import type { ChatThread, FuncUser, Group, PoolInvite } from '@/domain/types';
 
 const NOW = new Date('2026-08-23T20:00:00.000Z'); // matches the seed's "live as of now" liveStatusSince values
 
@@ -527,4 +527,184 @@ test('no invite detail ever exposes a plan.threadId that is not itself a viewer-
     );
   }
   assert.ok(checkedAtLeastOnePlan, 'sanity: at least one real invite in this view must still have a plan');
+});
+
+// ---------------------------------------------------------------------------
+// Opaque venue personas for verified businesses (Stage 11, reviewer finding
+// 5, bounded part 1): host/presence/self/thread-message projections must
+// never expose the operator's raw FuncUser identity.
+// ---------------------------------------------------------------------------
+
+test('a verified business is projected as the same opaque venue persona across invite hosting, presence, and self-view', () => {
+  const seed = buildSeed(NOW);
+
+  // Host of a business-created invite, seen by an unrelated viewer (Maya).
+  const mayaView = viewFor(seed, NOW);
+  const card = mayaView.invites.find((c) => c.id === 'inv_audiowave');
+  assert.ok(card);
+  assert.equal(card?.host.id, 'biz:v_audiowave');
+  assert.equal(card?.host.displayName, 'Audiowave');
+  assert.notEqual(card?.host.id, 'u_wren');
+  assert.notEqual(card?.host.displayName, 'Wren');
+  assert.notEqual(card?.host.photo, 'mono:#cbd5e1'); // Wren's own personal photo
+  assert.equal(card?.host.verifiedBusiness?.venueName, 'Audiowave');
+  // (Wren's own seeded handle happens to already be 'audiowave', coincidentally
+  // identical to the venue-derived handle -- id/displayName/photo above are
+  // the unambiguous proof no operator data leaked; handle just happens to
+  // read the same for this specific seeded operator.)
+
+  // Presence, from the same unrelated viewer.
+  const presenceEntry = mayaView.presence.find((p) => p.disclosure.kind === 'business');
+  assert.ok(presenceEntry);
+  assert.equal(presenceEntry?.person.id, 'biz:v_audiowave');
+  assert.equal(presenceEntry?.person.displayName, 'Audiowave');
+
+  // Self-view, as Wren herself, currently acting as her business.
+  const wrenView = viewFor({ ...seed, currentUserId: 'u_wren' }, NOW);
+  assert.equal(wrenView.self.activeProfile, 'business');
+  assert.equal(wrenView.self.id, 'biz:v_audiowave');
+  assert.equal(wrenView.self.displayName, 'Audiowave');
+  assert.notEqual(wrenView.self.id, 'u_wren');
+  assert.notEqual(wrenView.self.displayName, 'Wren');
+
+  // All three surfaces must agree on exactly the same persona id.
+  assert.equal(card?.host.id, presenceEntry?.person.id);
+  assert.equal(card?.host.id, wrenView.self.id);
+});
+
+test('a business-hosted pool thread attributes the host\'s own message to the venue persona, never their raw id', () => {
+  const kaiView = viewFor({ ...buildSeed(NOW), currentUserId: 'u_kai' }, NOW); // Kai attends inv_audiowave
+  const thread = kaiView.threads.find((t) => t.id === 'thr_inv_audiowave');
+  assert.ok(thread);
+
+  const wrenMessage = thread?.messages.find((m) => m.text.includes('Doors 10'));
+  assert.ok(wrenMessage, 'Wren\'s seeded chat message must still be present');
+  assert.equal(wrenMessage?.senderId, 'biz:v_audiowave');
+  assert.notEqual(wrenMessage?.senderId, 'u_wren');
+
+  const hostParticipant = thread?.participants.find((p) => p.id === 'biz:v_audiowave');
+  assert.ok(hostParticipant, 'the host\'s own participant entry must use the persona too');
+  assert.equal(hostParticipant?.displayName, 'Audiowave');
+
+  // people is keyed by the projected id, so a senderId/participant.id lookup
+  // must resolve the persona -- the raw operator id must have no entry.
+  assert.ok(kaiView.people.has('biz:v_audiowave'));
+  assert.equal(kaiView.people.has('u_wren'), false);
+});
+
+test('personal-account invite hosting, presence, self-view, and thread messages are unchanged by the persona model', () => {
+  const view = viewFor(buildSeed(NOW), NOW); // Maya, personal
+
+  const card = view.invites.find((c) => c.id === 'inv_afters'); // Maya's own private invite
+  assert.ok(card);
+  assert.equal(card?.host.id, 'u_maya');
+  assert.equal(card?.host.displayName, 'Maya');
+  assert.equal(card?.host.verifiedBusiness, undefined);
+
+  assert.equal(view.self.id, 'u_maya');
+  assert.equal(view.self.displayName, 'Maya');
+
+  // No presence entry (personal or business) should ever misattribute
+  // verifiedBusiness to a personal account.
+  for (const item of view.presence) {
+    if (item.disclosure.kind !== 'business') assert.equal(item.person.verifiedBusiness, undefined);
+  }
+
+  const thread = view.threads.find((t) => t.id === 'thr_inv_afters'); // Maya hosts, personal
+  assert.ok(thread);
+  const ownMessage = thread?.messages.find((m) => m.text.includes('Door code'));
+  assert.ok(ownMessage);
+  assert.equal(ownMessage?.senderId, 'u_maya');
+});
+
+test('a verified business whose venue cannot resolve fails closed to the unknown projection, never operator data', () => {
+  const seed = buildSeed(NOW);
+  const ghostBiz: FuncUser = {
+    id: 'u_ghost_biz',
+    handle: 'ghostbiz',
+    activeProfile: 'business',
+    personalProfile: { displayName: 'Ghost Operator', photo: 'mono:#123456', liveStatus: 'off', premium: false },
+    businessProfile: { venueName: 'Nonexistent Venue', verification: { status: 'verified', authority: 'simulated' } },
+  };
+  const ghostGroup: Group = { id: 'g_ghost_biz', leadUserId: 'u_ghost_biz', memberUserIds: ['u_ghost_biz'] };
+  const ghostInvite: PoolInvite = {
+    id: 'inv_ghost_biz',
+    hostGroupId: 'g_ghost_biz',
+    description: 'unresolved-venue business invite',
+    location: { lat: 37.76, lng: -122.42 },
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'private' },
+    requests: [],
+    attendeeGroupIds: ['g_ghost_biz'],
+    groupChatId: 'thr_ghost_biz',
+    createdByAccountType: 'business',
+    createdAt: NOW.toISOString(),
+  };
+  const snap: Snapshot = {
+    ...seed,
+    users: [...seed.users, ghostBiz],
+    groups: [...seed.groups, ghostGroup],
+    invites: [...seed.invites, ghostInvite],
+  };
+
+  // Self-view, as the ghost business itself.
+  const ghostSelfView = viewFor({ ...snap, currentUserId: 'u_ghost_biz' }, NOW);
+  assert.equal(ghostSelfView.self.id, 'unknown');
+  assert.notEqual(ghostSelfView.self.id, 'u_ghost_biz');
+  assert.notEqual(ghostSelfView.self.displayName, 'Ghost Operator');
+
+  // Invite host, as an unrelated viewer.
+  const mayaView = viewFor(snap, NOW);
+  const card = mayaView.invites.find((c) => c.id === 'inv_ghost_biz');
+  assert.ok(card);
+  assert.equal(card?.host.id, 'unknown');
+  assert.notEqual(card?.host.id, 'u_ghost_biz');
+  assert.notEqual(card?.host.displayName, 'Ghost Operator');
+});
+
+test('in a business-hosted thread, only messages from the host group are persona-substituted -- an attendee\'s own message keeps their real id', () => {
+  const seed = buildSeed(NOW);
+  // Custom invite/thread on the real, already-verified Audiowave persona,
+  // with messages interleaved between the host group (Wren) and a non-host
+  // attendee (Kai) so the per-message substitution is exercised directly,
+  // not inferred from a single-message seed thread.
+  const invite: PoolInvite = {
+    id: 'inv_audiowave_multi',
+    hostGroupId: 'g_wren',
+    description: 'multi-sender persona test',
+    location: { lat: 37.7716, lng: -122.4126 },
+    venueId: 'v_audiowave',
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'public' },
+    requests: [],
+    attendeeGroupIds: ['g_wren', 'g_kai'],
+    groupChatId: 'thr_audiowave_multi',
+    createdByAccountType: 'business',
+    createdAt: NOW.toISOString(),
+  };
+  const thread: ChatThread = {
+    id: 'thr_audiowave_multi',
+    kind: 'pool',
+    title: 'multi-sender persona test',
+    participantGroupIds: ['g_wren', 'g_kai'],
+    poolInviteId: 'inv_audiowave_multi',
+    messages: [
+      { id: 'm1', senderUserId: 'u_wren', text: 'first, from the venue', sentAt: NOW.toISOString() },
+      { id: 'm2', senderUserId: 'u_kai', text: 'second, from an attendee', sentAt: NOW.toISOString() },
+      { id: 'm3', senderUserId: 'u_wren', text: 'third, from the venue again', sentAt: NOW.toISOString() },
+    ],
+  };
+  const snap: Snapshot = {
+    ...seed,
+    invites: [...seed.invites, invite],
+    threads: [...seed.threads, thread],
+  };
+
+  const kaiView = viewFor({ ...snap, currentUserId: 'u_kai' }, NOW);
+  const view = kaiView.threads.find((t) => t.id === 'thr_audiowave_multi');
+  assert.ok(view);
+  assert.equal(view?.messages.length, 3);
+  assert.equal(view?.messages[0]?.senderId, 'biz:v_audiowave');
+  assert.equal(view?.messages[1]?.senderId, 'u_kai');
+  assert.equal(view?.messages[2]?.senderId, 'biz:v_audiowave');
 });
