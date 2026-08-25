@@ -89,6 +89,15 @@ test('a public invite anchored to a resolvable venueId discloses the venue coord
   }
 });
 
+test('a public invite anchored to a venue with invalid coordinates is hidden, never anchors to it', () => {
+  for (const bad of [{ lat: Number.NaN, lng: 2 }, { lat: 91, lng: 2 }, { lat: 1, lng: Number.POSITIVE_INFINITY }]) {
+    const v = venue('v_bad', 'Bad Coords', bad);
+    const i = invite({ access: { mode: 'public' }, venueId: 'v_bad' });
+    const disclosure = inviteDisclosure(context(), i, personalUser('host'), [v], 'none');
+    assert.equal(disclosure.kind, 'hidden', JSON.stringify(bad));
+  }
+});
+
 test('a public invite without a venueId is hidden', () => {
   const i = invite({ access: { mode: 'public' } });
   const disclosure = inviteDisclosure(context(), i, personalUser('host'), [], 'none');

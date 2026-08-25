@@ -65,7 +65,9 @@ export function personDisclosure(viewer: ViewerContext, subject: FuncUser, venue
     if (!isVerifiedBusiness(subject) || !subject.businessProfile) return { kind: 'none' };
     const venue = venues.find((v) => v.name === subject.businessProfile!.venueName);
     if (!venue) return { kind: 'none' };
-    return { kind: 'business', userId: subject.id, venueId: venue.id, location: venue.location };
+    const venueLoc = validLocation(venue.location);
+    if (!venueLoc) return { kind: 'none' };
+    return { kind: 'business', userId: subject.id, venueId: venue.id, location: venueLoc };
   }
   // 3. Friend, DTF only.
   const relationship = viewer.relationshipTo(subject.id);
@@ -96,13 +98,15 @@ export function venueGlow(viewer: ViewerContext, users: readonly FuncUser[], ven
   const glowing = new Set<string>();
   for (const venue of venues) {
     if (venue.category === 'shop') continue;
+    const venueLoc = validLocation(venue.location);
+    if (!venueLoc) continue;
     let qualifying = 0;
     for (const subject of users) {
       if (viewer.relationshipTo(subject.id) !== 'mutual' || subject.activeProfile !== 'personal') continue;
       const p = subject.personalProfile;
       const fix = validFix(p, viewer.now);
       if (!isPresenceLive(p, viewer.now) || p.liveStatus !== QUALIFYING_STATUS || !fix) continue;
-      if (distanceMetres(fix, venue.location) <= VENUE_RADIUS_M) qualifying += 1;
+      if (distanceMetres(fix, venueLoc) <= VENUE_RADIUS_M) qualifying += 1;
       if (qualifying >= MIN_MUTUALS_FOR_GLOW) {
         glowing.add(venue.id);
         break;
@@ -131,7 +135,9 @@ function validLocation(loc: LatLng | undefined): LatLng | null {
 export function areaLabelFor(point: LatLng, venues: readonly Venue[]): string {
   let nearest: { area: string; distance: number } | null = null;
   for (const v of venues) {
-    const d = distanceMetres(point, v.location);
+    const loc = validLocation(v.location);
+    if (!loc) continue;
+    const d = distanceMetres(point, loc);
     if (d <= AREA_RADIUS_M && (!nearest || d < nearest.distance)) nearest = { area: v.area, distance: d };
   }
   return nearest?.area ?? 'Nearby';
@@ -159,7 +165,9 @@ export function inviteDisclosure(
   if (invite.venueId) {
     const venue = venues.find((v) => v.id === invite.venueId);
     if (!venue) return { kind: 'hidden' };
-    return { kind: 'exact', location: venue.location, venueId: venue.id };
+    const venueLoc = validLocation(venue.location);
+    if (!venueLoc) return { kind: 'hidden' };
+    return { kind: 'exact', location: venueLoc, venueId: venue.id };
   }
   if (invite.access.mode === 'public') return { kind: 'hidden' };
   if (relation === 'host' || relation === 'attending') return { kind: 'exact', location: loc };

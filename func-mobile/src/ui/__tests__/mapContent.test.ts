@@ -3,6 +3,7 @@ import test from 'node:test';
 import { buildSeed } from '@/data/seed';
 import type { Snapshot } from '@/data/repository';
 import { viewFor } from '@/data/views';
+import { nextLocalNoon } from '@/domain/liveStatus';
 import { mapPins } from '../map/content';
 
 const NOW = new Date('2026-08-23T20:00:00.000Z'); // matches the seed's "live as of now" liveStatusSince values
@@ -14,17 +15,21 @@ const NOW = new Date('2026-08-23T20:00:00.000Z'); // matches the seed's "live as
  * fix to postdate `liveStatusSince`) always fails-closed on the seed's own
  * "now". That's the production privacy rule working correctly, not a bug
  * to route around in `content.ts`/`grouping.ts`. To exercise the person/glow
- * paths this test fixture backdates `liveStatusSince` for personal users who
- * are live and have a fix, so their existing fix timestamp now postdates it.
+ * paths this test fixture backdates `liveStatusSince` (and its stamped
+ * `liveStatusExpiresAt`, recomputed from the same backdated instant) for
+ * personal users who are live and have a fix, so their existing fix
+ * timestamp now postdates it.
  */
 function withValidLiveFixes(snap: Snapshot, now: Date): Snapshot {
-  const since = new Date(now.getTime() - 4 * 3_600_000).toISOString(); // well before every seeded agoHours
+  const sinceDate = new Date(now.getTime() - 4 * 3_600_000); // well before every seeded agoHours
+  const since = sinceDate.toISOString();
+  const expires = nextLocalNoon(sinceDate).toISOString();
   return {
     ...snap,
     users: snap.users.map((u) => {
       const p = u.personalProfile;
       if (p.liveStatus === 'off' || !p.lastKnownLocation) return u;
-      return { ...u, personalProfile: { ...p, liveStatusSince: since } };
+      return { ...u, personalProfile: { ...p, liveStatusSince: since, liveStatusExpiresAt: expires } };
     }),
   };
 }

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { buildSeed } from '@/data/seed';
 import type { Snapshot } from '@/data/repository';
 import { viewFor } from '@/data/views';
+import { nextLocalNoon } from '@/domain/liveStatus';
 import { viewerLocation } from '../viewerGeo';
 
 const NOW = new Date('2026-08-23T20:00:00.000Z');
@@ -12,16 +13,20 @@ const NOW = new Date('2026-08-23T20:00:00.000Z');
  * `now` argument, while `lastKnownLocation.timestamp` predates that instant
  * -- so `validFix` correctly fails-closed at the seed's own "now" (see
  * `mapContent.test.ts`, which established this same fixture pattern). This
- * backdates `liveStatusSince` so the seed's existing fixes validate.
+ * backdates `liveStatusSince` (and its stamped `liveStatusExpiresAt`,
+ * recomputed from the same backdated instant) so the seed's existing fixes
+ * validate.
  */
 function withValidLiveFixes(snap: Snapshot, now: Date): Snapshot {
-  const since = new Date(now.getTime() - 4 * 3_600_000).toISOString();
+  const sinceDate = new Date(now.getTime() - 4 * 3_600_000);
+  const since = sinceDate.toISOString();
+  const expires = nextLocalNoon(sinceDate).toISOString();
   return {
     ...snap,
     users: snap.users.map((u) => {
       const p = u.personalProfile;
       if (p.liveStatus === 'off' || !p.lastKnownLocation) return u;
-      return { ...u, personalProfile: { ...p, liveStatusSince: since } };
+      return { ...u, personalProfile: { ...p, liveStatusSince: since, liveStatusExpiresAt: expires } };
     }),
   };
 }

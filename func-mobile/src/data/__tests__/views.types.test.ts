@@ -24,6 +24,8 @@ person.personalProfile;
 person.lastKnownLocation;
 // @ts-expect-error
 person.liveStatusSince;
+// @ts-expect-error
+person.liveStatusExpiresAt;
 
 declare const snap: ViewerSnapshot;
 // @ts-expect-error -- ViewerSnapshot must never enumerate every user/group/friendship

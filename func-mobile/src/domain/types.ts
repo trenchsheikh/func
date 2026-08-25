@@ -26,8 +26,10 @@ export interface PersonalProfile {
   displayName: string;
   photo: string;
   liveStatus: LiveStatus;
-  /** ISO. When the current liveStatus was set. Presence expires at the next local noon after this. Missing/invalid/future ⇒ not live. */
+  /** ISO. When the current liveStatus was set. */
   liveStatusSince?: string;
+  /** ISO. Absolute expiry stamped once at enable time (next local noon after `liveStatusSince`) — never recomputed from `liveStatusSince` on read. Missing/invalid/inconsistent ⇒ not live. */
+  liveStatusExpiresAt?: string;
   lastKnownLocation?: { lat: number; lng: number; timestamp: string };
   premium: boolean;
 }

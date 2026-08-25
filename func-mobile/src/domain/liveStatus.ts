@@ -16,13 +16,22 @@ export function parseIso(iso: string | undefined): Date | null {
   return d.toISOString() === iso ? d : null;
 }
 
-/** true iff liveStatus !== 'off' && since parses && since <= now && now < nextLocalNoon(since). */
+/**
+ * true iff liveStatus !== 'off', both `since` and `expires` parse as strict
+ * canonical UTC ISO, since <= now < expires, and expires is after since.
+ * `liveStatusExpiresAt` is stamped once at enable time (see
+ * InMemoryRepository.setLiveStatus / seed/users.ts) -- it is never
+ * recomputed from `liveStatusSince` here, so a missing, malformed, or
+ * inconsistent expiry fails closed instead of silently re-deriving one.
+ */
 export function isPresenceLive(p: PersonalProfile, now: Date): boolean {
   if (p.liveStatus === 'off') return false;
   const since = parseIso(p.liveStatusSince);
-  if (!since) return false;
+  const expires = parseIso(p.liveStatusExpiresAt);
+  if (!since || !expires) return false;
+  if (expires.getTime() <= since.getTime()) return false;
   if (since.getTime() > now.getTime()) return false;
-  return now.getTime() < nextLocalNoon(since).getTime();
+  return now.getTime() < expires.getTime();
 }
 
 /** Live status is a personal-profile concept only. */

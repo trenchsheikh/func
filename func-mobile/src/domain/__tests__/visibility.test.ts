@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { personDisclosure } from '../visibility';
+import { personDisclosure, areaLabelFor } from '../visibility';
+import { nextLocalNoon } from '../liveStatus';
 import type { FuncUser, VerificationStatus, Venue } from '../types';
 
 const NOW = new Date('2026-08-21T22:00:00Z');
@@ -16,6 +17,7 @@ function user(id: string, status: FuncUser['personalProfile']['liveStatus'] = 'd
       photo: `mono:${id}`,
       liveStatus: status,
       liveStatusSince: NOW.toISOString(),
+      liveStatusExpiresAt: nextLocalNoon(NOW).toISOString(),
       premium: false,
       lastKnownLocation: { lat: 37.77, lng: -122.42, timestamp: NOW.toISOString() },
     },
@@ -87,6 +89,7 @@ test('a friend past their next local noon since DTF is no longer disclosed, even
   const now = new Date('2026-08-23T13:00:00.000Z'); // past the noon after `since`
   const subject = user('subject', 'dtf');
   subject.personalProfile.liveStatusSince = since;
+  subject.personalProfile.liveStatusExpiresAt = nextLocalNoon(new Date(since)).toISOString();
   const disclosure = personDisclosure(context('friend', now), subject, []);
   assert.equal(disclosure.kind, 'none');
 });
@@ -97,6 +100,7 @@ test('a stale fix from before the current presence session is not disclosed, eve
   const now = new Date('2026-08-23T20:00:00.000Z'); // after since, before the next local noon
   const subject = user('subject', 'dtf');
   subject.personalProfile.liveStatusSince = since;
+  subject.personalProfile.liveStatusExpiresAt = nextLocalNoon(new Date(since)).toISOString();
   subject.personalProfile.lastKnownLocation = { lat: 37.77, lng: -122.42, timestamp: staleFixTimestamp };
   const disclosure = personDisclosure(context('friend', now), subject, []);
   assert.equal(disclosure.kind, 'none');
@@ -113,4 +117,22 @@ test('a verified business discloses at the venue coordinate', () => {
   const disclosure = personDisclosure(context('none'), wren, [venue('Audiowave', { lat: 1, lng: 2 })]);
   assert.equal(disclosure.kind, 'business');
   if (disclosure.kind === 'business') assert.deepEqual(disclosure.location, { lat: 1, lng: 2 });
+});
+
+test('a verified business with an invalid venue coordinate is never disclosed, and never throws', () => {
+  const wren = businessUser('wren', 'Audiowave', 'verified');
+  for (const bad of [{ lat: Number.NaN, lng: 2 }, { lat: 91, lng: 2 }, { lat: 1, lng: Number.POSITIVE_INFINITY }]) {
+    const disclosure = personDisclosure(context('none'), wren, [venue('Audiowave', bad)]);
+    assert.equal(disclosure.kind, 'none');
+  }
+});
+
+test('areaLabelFor skips venues with invalid coordinates and falls back to "Nearby" if none qualify', () => {
+  const bad: Venue = { id: 'v_bad', name: 'Bad Coords', category: 'club', area: 'BadArea', location: { lat: Number.NaN, lng: -122.42 }, priceTier: 1, blurb: 'x' };
+  assert.equal(areaLabelFor({ lat: 37.7715, lng: -122.4123 }, [bad]), 'Nearby');
+
+  // Mixed in with a valid, closer venue in a different area, the bad one
+  // must never win -- it should be invisible to the nearest-match search.
+  const good: Venue = { id: 'v_good', name: 'Good Coords', category: 'club', area: 'GoodArea', location: { lat: 37.7715, lng: -122.4123 }, priceTier: 1, blurb: 'x' };
+  assert.equal(areaLabelFor({ lat: 37.7715, lng: -122.4123 }, [bad, good]), 'GoodArea');
 });

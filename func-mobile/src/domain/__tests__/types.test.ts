@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildSeed } from '../../data/seed';
 import { SEED_VENUES } from '../../data/seed/venues';
+import { nextLocalNoon } from '../liveStatus';
 
 const NOW = new Date('2026-08-23T20:00:00.000Z');
 
@@ -11,13 +12,16 @@ function userById(snapshot: ReturnType<typeof buildSeed>, id: string) {
   return user;
 }
 
-test('every non-off seeded personal profile carries liveStatusSince; off profiles do not', () => {
+test('every non-off seeded personal profile carries liveStatusSince and a stamped liveStatusExpiresAt; off profiles carry neither', () => {
   const snapshot = buildSeed(NOW);
+  const expectedExpiry = nextLocalNoon(NOW).toISOString();
   for (const user of snapshot.users) {
     if (user.personalProfile.liveStatus === 'off') {
       assert.equal(user.personalProfile.liveStatusSince, undefined, `${user.id} is off and should have no liveStatusSince`);
+      assert.equal(user.personalProfile.liveStatusExpiresAt, undefined, `${user.id} is off and should have no liveStatusExpiresAt`);
     } else {
       assert.equal(user.personalProfile.liveStatusSince, NOW.toISOString(), `${user.id} is ${user.personalProfile.liveStatus} and should be live as of now`);
+      assert.equal(user.personalProfile.liveStatusExpiresAt, expectedExpiry, `${user.id} should have expiry stamped at seed time`);
     }
   }
 });

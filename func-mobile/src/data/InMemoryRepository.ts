@@ -8,6 +8,7 @@ import type {
   PoolInvite,
 } from '@/domain/types';
 import { canCreateInviteAs, isFull, relationTo } from '@/domain/pool';
+import { nextLocalNoon } from '@/domain/liveStatus';
 import type {
   CommandResult,
   CreateInviteInput,
@@ -147,16 +148,20 @@ export class InMemoryRepository implements FuncRepository {
     if (me.activeProfile !== 'personal') {
       return { ok: false, reason: 'Business accounts have no live status.' };
     }
-    const now = this.clock.now().toISOString();
+    const nowDate = this.clock.now();
+    const now = nowDate.toISOString();
     this.patch({
       users: this.snapshot.users.map((u) => {
         if (u.id !== me.id) return u;
         if (status === 'off') {
-          // Off removes the fix immediately -- no lingering pin while status is off.
-          const { lastKnownLocation: _drop, ...rest } = u.personalProfile;
-          return { ...u, personalProfile: { ...rest, liveStatus: status, liveStatusSince: now } };
+          // Off removes the fix and clears live-status timestamps immediately
+          // -- no lingering pin, and no stale since/expiry, while status is off.
+          const { lastKnownLocation: _drop, liveStatusSince: _dropSince, liveStatusExpiresAt: _dropExpires, ...rest } = u.personalProfile;
+          return { ...u, personalProfile: { ...rest, liveStatus: status } };
         }
-        // Turning live back on republishes from the device's fix, if it has one.
+        // Turning live back on republishes from the device's fix, if it has
+        // one, and stamps a fresh absolute expiry -- the next local noon from
+        // this enable instant, never recomputed later on read.
         const fix = this.deviceFixes.get(u.id);
         const lastKnownLocation = fix ? { ...fix, timestamp: now } : u.personalProfile.lastKnownLocation;
         return {
@@ -165,6 +170,7 @@ export class InMemoryRepository implements FuncRepository {
             ...u.personalProfile,
             liveStatus: status,
             liveStatusSince: now,
+            liveStatusExpiresAt: nextLocalNoon(nowDate).toISOString(),
             ...(lastKnownLocation ? { lastKnownLocation } : {}),
           },
         };
@@ -183,10 +189,10 @@ export class InMemoryRepository implements FuncRepository {
       users: this.snapshot.users.map((u) => {
         if (u.id !== me.id) return u;
         if (to !== 'business') return { ...u, activeProfile: to };
-        // Switching into business removes live-status access and the fix
-        // itself; the personal profile's status is switched off rather than
-        // left silently broadcasting.
-        const { lastKnownLocation: _drop, ...rest } = u.personalProfile;
+        // Switching into business removes live-status access, the fix
+        // itself, and any live-status timestamps; the personal profile's
+        // status is switched off rather than left silently broadcasting.
+        const { lastKnownLocation: _drop, liveStatusSince: _dropSince, liveStatusExpiresAt: _dropExpires, ...rest } = u.personalProfile;
         return { ...u, activeProfile: to, personalProfile: { ...rest, liveStatus: 'off' } };
       }),
     });
@@ -214,9 +220,13 @@ export class InMemoryRepository implements FuncRepository {
           reason: 'Open invites must be at a listed venue -- private places need a private invite.',
         };
       }
+      if (!isValidLatLng(venue.location)) {
+        return { ok: false, reason: 'This venue has no valid location on file.' };
+      }
       location = venue.location;
     } else if (input.venueId) {
       if (!venue) return { ok: false, reason: 'Pin a location.' };
+      if (!isValidLatLng(venue.location)) return { ok: false, reason: 'Pin a location.' };
       location = venue.location;
     } else if (isValidLatLng(input.location)) {
       location = input.location;

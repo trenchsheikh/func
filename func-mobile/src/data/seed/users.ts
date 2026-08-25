@@ -1,4 +1,5 @@
 import type { FuncUser, Group, VerificationStatus } from '@/domain/types';
+import { nextLocalNoon } from '@/domain/liveStatus';
 
 export const ME = 'u_maya';
 
@@ -50,7 +51,9 @@ export function buildUsers(now: Date): { users: FuncUser[]; groups: Group[] } {
       photo: `mono:${s.color}`,
       liveStatus: s.status,
       premium: s.premium,
-      ...(s.status !== 'off' ? { liveStatusSince: now.toISOString() } : {}),
+      ...(s.status !== 'off'
+        ? { liveStatusSince: now.toISOString(), liveStatusExpiresAt: nextLocalNoon(now).toISOString() }
+        : {}),
       ...(s.at && s.agoHours != null
         ? {
             lastKnownLocation: {

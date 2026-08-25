@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { InMemoryRepository } from '../InMemoryRepository';
 import { buildSeed } from '../seed';
-import { livePinFor } from '../../domain/liveStatus';
+import { livePinFor, isPresenceLive, nextLocalNoon } from '../../domain/liveStatus';
 import { isFull, pendingRequests, relationTo, seatsLeft } from '../../domain/pool';
 import { hostedInvitesWithPending, myGroup, partySizeOf } from '../selectors';
 
@@ -245,11 +245,60 @@ test('off clears the fix; re-enabling live republishes the seeded device fix', (
   assert.equal(me.personalProfile.lastKnownLocation!.lng, -122.4201);
 });
 
-test('switching to business clears the personal fix', () => {
+test('setLiveStatus clears liveStatusSince/liveStatusExpiresAt on off, and stamps a fresh absolute expiry on enable', () => {
   const repo = fresh();
-  assert.equal(repo.switchProfile('business').ok, true);
+  assert.equal(repo.setLiveStatus('off').ok, true);
+  let me = repo.getSnapshot().users.find((u) => u.id === 'u_maya')!;
+  assert.equal(me.personalProfile.liveStatusSince, undefined);
+  assert.equal(me.personalProfile.liveStatusExpiresAt, undefined);
+  assert.equal(isPresenceLive(me.personalProfile, NOW), false);
+
+  assert.equal(repo.setLiveStatus('dtf').ok, true);
+  me = repo.getSnapshot().users.find((u) => u.id === 'u_maya')!;
+  assert.equal(me.personalProfile.liveStatusSince, NOW.toISOString());
+  assert.equal(me.personalProfile.liveStatusExpiresAt, nextLocalNoon(NOW).toISOString());
+  assert.equal(isPresenceLive(me.personalProfile, NOW), true);
+});
+
+test('switching to business clears the personal fix and live-status timestamps', () => {
+  const repo = fresh();
   const me = repo.getSnapshot().users.find((u) => u.id === 'u_maya')!;
-  assert.equal(me.personalProfile.lastKnownLocation, undefined);
+  assert.equal(me.personalProfile.liveStatus, 'casual', 'sanity: Maya seeds live so this exercises a real clear');
+  assert.equal(repo.switchProfile('business').ok, true);
+  const after = repo.getSnapshot().users.find((u) => u.id === 'u_maya')!;
+  assert.equal(after.personalProfile.lastKnownLocation, undefined);
+  assert.equal(after.personalProfile.liveStatusSince, undefined);
+  assert.equal(after.personalProfile.liveStatusExpiresAt, undefined);
+});
+
+test('createInvite: a venue-anchored invite fails closed when the venue has invalid coordinates, never anchors to it', () => {
+  const seedWithBadVenue = (now: Date) => {
+    const s = buildSeed(now);
+    return {
+      ...s,
+      venues: s.venues.map((v) => (v.id === 'v_lantern' ? { ...v, location: { lat: Number.NaN, lng: -122.42 } } : v)),
+    };
+  };
+  const repo = new InMemoryRepository(seedWithBadVenue, { now: () => NOW });
+  const before = repo.getSnapshot().invites.length;
+
+  const publicResult = repo.createInvite({
+    description: 'open invite at a corrupt venue',
+    venueId: 'v_lantern',
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'public' },
+  });
+  assert.equal(publicResult.ok, false);
+
+  const privateResult = repo.createInvite({
+    description: 'private invite at a corrupt venue',
+    venueId: 'v_lantern',
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'private' },
+  });
+  assert.equal(privateResult.ok, false);
+
+  assert.equal(repo.getSnapshot().invites.length, before, 'no invite should be created against an invalid venue coordinate');
 });
 
 test('demo.switchPersona changes currentUserId and rejects an unknown id', () => {

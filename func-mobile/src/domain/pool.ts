@@ -9,16 +9,38 @@ export function pendingRequests(invite: PoolInvite): PoolRequest[] {
 }
 
 /**
+ * Prototype-safe upper bound for any single party size or invite capacity
+ * maximum. This is an in-memory demo with no real venues, backend, or
+ * payment rails -- nothing here should legitimately exceed a few hundred
+ * people (the largest plausible single Pool is a rented-out venue), and the
+ * UI's own party-size stepper already tops out at 12. 500 leaves generous
+ * headroom over anything the product can produce today while still
+ * rejecting corrupted or adversarial values -- NaN, Infinity, fractions, or
+ * absurd counts -- before they ever reach capacity arithmetic.
+ */
+export const MAX_POOL_SIZE = 500;
+
+/** A party size or capacity maximum that's safe to use in capacity arithmetic. */
+function isValidPoolSize(n: unknown): n is number {
+  return typeof n === 'number' && Number.isFinite(n) && Number.isInteger(n) && n > 0 && n <= MAX_POOL_SIZE;
+}
+
+/**
  * Seats taken = attendees (host excluded) by party size. The party size lives
  * on the group's request record when there is one (both private requests and
  * public joins record one), else falls back to the group's member count.
+ * Non-finite, fractional, non-positive, or excessive persisted party sizes
+ * are dropped from the count rather than propagated -- a single corrupt
+ * value must not turn every downstream capacity check into NaN, which
+ * compares false against everything and would silently defeat the cap.
  */
 export function seatsTaken(invite: PoolInvite, partySizeOf: (groupId: string) => number): number {
   return invite.attendeeGroupIds
     .filter((g) => g !== invite.hostGroupId)
     .reduce((sum, g) => {
       const rec = invite.requests.find((r) => r.requestingGroupId === g && r.status === 'accepted');
-      return sum + (rec?.partySize ?? partySizeOf(g));
+      const size = rec?.partySize ?? partySizeOf(g);
+      return sum + (isValidPoolSize(size) ? size : 0);
     }, 0);
 }
 
@@ -29,7 +51,8 @@ export function attendingPartySize(
   partySizeOf: (groupId: string) => number,
 ): number {
   const rec = invite.requests.find((r) => r.requestingGroupId === groupId && r.status === 'accepted');
-  return rec?.partySize ?? partySizeOf(groupId);
+  const size = rec?.partySize ?? partySizeOf(groupId);
+  return isValidPoolSize(size) ? size : 0;
 }
 
 export function seatsLeft(
@@ -37,7 +60,12 @@ export function seatsLeft(
   partySizeOf: (groupId: string) => number,
 ): number | null {
   if (invite.capacity.mode === 'uncapped' || invite.capacity.max == null) return null;
-  return Math.max(0, invite.capacity.max - seatsTaken(invite, partySizeOf));
+  // An invalid capacity ceiling fails closed to "no room" rather than being
+  // silently coerced (e.g. via Math.max) into a value that could
+  // under-report occupancy and allow overbooking.
+  if (!isValidPoolSize(invite.capacity.max)) return 0;
+  const left = invite.capacity.max - seatsTaken(invite, partySizeOf);
+  return left > 0 ? left : 0;
 }
 
 export function isFull(
@@ -45,6 +73,8 @@ export function isFull(
   partySizeOf: (groupId: string) => number,
   incomingPartySize = 1,
 ): boolean {
+  // An invalid incoming party size can't be safely admitted -- fail closed.
+  if (!isValidPoolSize(incomingPartySize)) return true;
   const left = seatsLeft(invite, partySizeOf);
   return left != null && left < incomingPartySize;
 }
@@ -82,9 +112,10 @@ export function accessLabel(invite: { readonly access: { readonly mode: 'private
 }
 
 export function capacityLabel(invite: { readonly capacity: { readonly mode: 'capped' | 'uncapped'; readonly max?: number } }): string {
-  return invite.capacity.mode === 'capped' && invite.capacity.max != null
-    ? `Max ${invite.capacity.max}`
-    : 'No cap';
+  if (invite.capacity.mode !== 'capped' || invite.capacity.max == null) return 'No cap';
+  // An invalid persisted maximum reads as "Full" rather than a garbage
+  // number -- consistent with seatsLeft/isFull treating it as no room.
+  return isValidPoolSize(invite.capacity.max) ? `Max ${invite.capacity.max}` : 'Full';
 }
 
 /** Personal accounts may always post; business accounts must be verified first. */
