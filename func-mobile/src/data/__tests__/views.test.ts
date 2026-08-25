@@ -8,7 +8,7 @@ import test from 'node:test';
 import { buildSeed } from '../seed';
 import { viewFor } from '../views';
 import type { Snapshot } from '../repository';
-import type { ChatThread, FuncUser, Group, PoolInvite } from '@/domain/types';
+import type { ChatThread, FuncUser, Group, MessageRequest, PoolInvite } from '@/domain/types';
 
 const NOW = new Date('2026-08-23T20:00:00.000Z'); // matches the seed's "live as of now" liveStatusSince values
 
@@ -707,4 +707,112 @@ test('in a business-hosted thread, only messages from the host group are persona
   assert.equal(view?.messages[0]?.senderId, 'biz:v_audiowave');
   assert.equal(view?.messages[1]?.senderId, 'u_kai');
   assert.equal(view?.messages[2]?.senderId, 'biz:v_audiowave');
+});
+
+// ---------------------------------------------------------------------------
+// Messaging-persona hardening (Stage 11, bounded part 2): DM senderIds,
+// incoming/outgoing message-request identities, and the shared people map
+// must never carry a verified business's raw operator id, in a DM thread or
+// anywhere else -- not just the pool host-group path bounded part 1 covered.
+// ---------------------------------------------------------------------------
+
+test('a verified business authors a DM message and it is projected as the venue persona, never the raw operator id', () => {
+  const seed = buildSeed(NOW);
+  const thread: ChatThread = {
+    id: 'thr_dm_wren_biz',
+    kind: 'dm',
+    title: 'Audiowave',
+    participantGroupIds: ['g_wren', 'g_maya'],
+    messages: [{ id: 'm_dm_wren_1', senderUserId: 'u_wren', text: 'table for four tonight?', sentAt: NOW.toISOString() }],
+  };
+  const snap: Snapshot = { ...seed, threads: [...seed.threads, thread] };
+
+  const view = viewFor(snap, NOW); // Maya (ME)
+  const dm = view.threads.find((t) => t.id === 'thr_dm_wren_biz');
+  assert.ok(dm);
+  const msg = dm?.messages.find((m) => m.id === 'm_dm_wren_1');
+  assert.ok(msg);
+  assert.equal(msg?.senderId, 'biz:v_audiowave');
+  assert.notEqual(msg?.senderId, 'u_wren');
+
+  // People-map lookup consistency: the projected id resolves, the raw
+  // operator id has no entry at all.
+  assert.ok(view.people.has('biz:v_audiowave'));
+  assert.equal(view.people.has('u_wren'), false);
+});
+
+test('an incoming message request from a verified business shows the venue persona, never the operator id', () => {
+  const seed = buildSeed(NOW);
+  const request: MessageRequest = {
+    id: 'mr_wren_biz',
+    fromUserId: 'u_wren',
+    toUserId: 'u_maya',
+    text: 'reserve you a booth Friday?',
+    status: 'pending',
+    createdAt: NOW.toISOString(),
+  };
+  const snap: Snapshot = { ...seed, messageRequests: [...seed.messageRequests, request] };
+
+  const view = viewFor(snap, NOW); // Maya (ME) is the recipient
+  const incoming = view.inbox.messageRequests.find((r) => r.id === 'mr_wren_biz');
+  assert.ok(incoming);
+  assert.equal(incoming?.from.id, 'biz:v_audiowave');
+  assert.equal(incoming?.from.displayName, 'Audiowave');
+  assert.notEqual(incoming?.from.id, 'u_wren');
+
+  assert.ok(view.people.has('biz:v_audiowave'));
+  assert.equal(view.people.has('u_wren'), false);
+});
+
+test('a personal-to-personal DM is projected exactly as before -- both senders keep their raw ids', () => {
+  const view = viewFor(buildSeed(NOW), NOW); // Maya (ME)
+  const dm = view.threads.find((t) => t.id === 'thr_dm_priya');
+  assert.ok(dm);
+  assert.equal(dm?.messages.find((m) => m.id === 'msg_dm_1')?.senderId, 'u_priya');
+  assert.equal(dm?.messages.find((m) => m.id === 'msg_dm_2')?.senderId, 'u_maya');
+  assert.equal(dm?.messages.find((m) => m.id === 'msg_dm_3')?.senderId, 'u_priya');
+});
+
+test('SelfView.pendingMessageRequestsTo projects a verified-business recipient to its venue persona, and fails closed to unknown when the venue cannot resolve', () => {
+  const seed = buildSeed(NOW);
+
+  const toWren: MessageRequest = {
+    id: 'mr_maya_to_wren',
+    fromUserId: 'u_maya',
+    toUserId: 'u_wren',
+    text: 'table for six?',
+    status: 'pending',
+    createdAt: NOW.toISOString(),
+  };
+
+  const ghostBiz: FuncUser = {
+    id: 'u_ghost_biz_msg',
+    handle: 'ghostbizmsg',
+    activeProfile: 'business',
+    personalProfile: { displayName: 'Ghost Operator', photo: 'mono:#123456', liveStatus: 'off', premium: false },
+    businessProfile: { venueName: 'Nonexistent Venue Two', verification: { status: 'verified', authority: 'simulated' } },
+  };
+  const toGhost: MessageRequest = {
+    id: 'mr_maya_to_ghost',
+    fromUserId: 'u_maya',
+    toUserId: 'u_ghost_biz_msg',
+    text: 'are you open?',
+    status: 'pending',
+    createdAt: NOW.toISOString(),
+  };
+
+  const snap: Snapshot = {
+    ...seed,
+    users: [...seed.users, ghostBiz],
+    messageRequests: [...seed.messageRequests, toWren, toGhost],
+  };
+
+  const view = viewFor(snap, NOW); // Maya (ME) is the sender/self
+  assert.ok(view.self.pendingMessageRequestsTo.includes('biz:v_audiowave'));
+  assert.equal(view.self.pendingMessageRequestsTo.includes('u_wren'), false);
+  assert.ok(view.self.pendingMessageRequestsTo.includes('unknown'));
+  assert.equal(view.self.pendingMessageRequestsTo.includes('u_ghost_biz_msg'), false);
+
+  assert.ok(view.people.has('biz:v_audiowave'));
+  assert.equal(view.people.has('u_wren'), false);
 });

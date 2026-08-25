@@ -385,9 +385,16 @@ function buildSelfView(
     .filter((st) => st.authorUserId === self.id)
     .map((st) => ({ id: st.id, text: st.text, createdAt: st.createdAt }));
 
+  // Projected ids, not raw ones -- a pending request to a verified business
+  // must read as its venue persona (or fail closed to 'unknown'), same as
+  // every other surface that references a business by id.
   const pendingMessageRequestsTo = s.messageRequests
     .filter((r) => r.fromUserId === self.id && r.status === 'pending')
-    .map((r) => r.toUserId);
+    .map((r) => {
+      const to = userById(s, r.toUserId);
+      if (to) addPerson(to);
+      return to ? personSummary(to, s.venues).id : unknownPerson().id;
+    });
 
   // While acting as a verified business (venue resolving), the viewer's own
   // identity is the same opaque venue persona everyone else sees them as --
@@ -496,13 +503,26 @@ function buildThread(
     title: t.title,
     ...(t.poolInviteId ? { inviteId: t.poolInviteId } : {}),
     participants: resolved.leads.map((u) => personSummary(u, s.venues)),
-    messages: t.messages.map((m) => ({
-      id: m.id,
-      senderId:
-        hostPersona && hostPersona.memberIds.has(m.senderUserId) ? hostPersona.summary.id : m.senderUserId,
-      text: m.text,
-      sentAt: m.sentAt,
-    })),
+    // Every sender is projected through personSummary -- a verified business
+    // currently acting as itself is never shown as its raw operator id, in a
+    // DM or otherwise -- except a business host-group member, who keeps the
+    // one stable "created under business" persona from hostPersona instead
+    // (see hostGroupPersona above) rather than being re-derived per message.
+    messages: t.messages.map((m) => {
+      // Re-resolved rather than indexed off `resolved.senders` -- every
+      // message's sender is already guaranteed to resolve here (that's what
+      // resolveThreadIdentities validated to get this far), but re-looking
+      // it up keeps that guarantee local instead of leaning on parallel-
+      // array-index correspondence.
+      const sender = userById(s, m.senderUserId);
+      const senderId =
+        hostPersona && hostPersona.memberIds.has(m.senderUserId)
+          ? hostPersona.summary.id
+          : sender
+            ? personSummary(sender, s.venues).id
+            : m.senderUserId;
+      return { id: m.id, senderId, text: m.text, sentAt: m.sentAt };
+    }),
     lastActivity: lastActivity(t),
   };
 }
