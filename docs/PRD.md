@@ -1,364 +1,311 @@
-# Func. — Context Handoff + Product Requirements
+# Func — Product Requirements Document
 
-**Written 2026-08-07.** Hand this to a fresh session as the starting point.
-It contains everything decided so far, what is built, and where to push next.
+**Version:** 1.0 current-truth draft
+**Date:** 2026-08-25
+**Status:** Ready for founder review; not yet an implementation contract
+**Product baseline:** `func-mobile` at `aac98d3`
+**Companion authority:** Master Product Spec v4.1 and Feature & Decision Tracker, both last updated 2026-08-23
+**Audience:** Product, design, mobile, backend, safety, operations, and future investors
 
-> **Read this first, then `Func/CLAUDE.md` → `team/README.md` → `team/standing-orders.md`.**
-> Standing orders can pause or redirect what you are about to do.
+> This document replaces the older historical handoff that previously occupied `docs/PRD.md`. Older Call It, voting, Plan Flag, Convoy, group-first, Afters-mode, and MapLibre requirements must not be treated as current requirements.
 
----
+## 1. Product definition
 
-# PART 1 — CONTEXT
+Func is a map-first social nightlife product. It shows what is happening, shows people or places only when permission allows, and helps a person take a safe next step toward a real night out.
 
-## Who you are working with
+### Core loop
 
-**Phoenix Barnes** — founder and CEO of Func, on a gap year (2025–26), based in the UK.
-Final decision-maker on everything.
-
-- **He does not read code.** Explain what is right and what is wrong plainly, and say
-  which one you think it is. Never soften a correction into a compliment.
-- **He has ADHD.** One obvious next action beats a comprehensive list. Keep responses
-  scannable. Do the work rather than describing the work.
-- **He wants directness and ambition.** His words: *"Do not accept mediocrity make every
-  aspect impressive, desirable and easy to use."* He believes Func will be *"the next
-  pillar in social media"*. Take that seriously; do not flatter it.
-- **He wants to be asked.** He explicitly asked to be consulted on every feature before
-  building. Eight rounds of structured questions produced the decisions below — that
-  process worked and is worth repeating for anything new.
-- **Collaborator:** Micha / Michail, involved in ideas (the pet concept) and previously
-  the intended route for prototype UI art.
-
-## The repo
-
-`/Users/phoenixbarnes/Library/Mobile Documents/com~apple~CloudDocs/All Files/Func/`
-
-⚠️ **It is in iCloud Drive. Shell listings lie.** Files can be cloud-only placeholders —
-tracked by git and readable by file tools, but invisible to `ls`. A directory that looks
-empty may be full. On 2026-07-27 a session ran `ls team/`, saw nothing, assumed the folder
-was lost, and overwrote five files. **Never conclude a file is missing from a shell
-listing.** Use the file tools; check `git status`.
-
-| Path | What |
-|---|---|
-| `docs/DECISION_LOG.md` | Decisions 001–016. **The source of truth for direction.** |
-| `docs/PRODUCT_THESIS.md` | One-page thesis, v4.0 |
-| `docs/PRD.md` | This file |
-| `docs/RAW_IDEAS.md` | Every raw idea, logged verbatim, with status |
-| `team/func-identity.md` | The Tier 0–3 change system. Read before assessing any idea. |
-| `team/standing-orders.md` | Live founder instructions. Checking it is not optional. |
-| `prototype-web/` | **The live prototype.** Real code. |
-| `prototype/` | Old Expo prototype. Superseded — do not build on it. |
-| `inbox/` | Drop zone for assets and transcripts |
-
-## The governance rules that actually matter
-
-1. **Tier 0 changes are never inferred, bundled, or auto-applied.** They require Phoenix's
-   explicit instruction naming the specific thing. A Tier 0 change forces a new major spec
-   version, a Decision Log entry recording what the product was before and after, and
-   **marks every existing deck stale**.
-2. **Contested ideas are preserved, not smoothed over.** If Phoenix contradicts himself,
-   record both positions and put the conflict to him directly. Do not synthesise.
-3. **Live conversation outranks a standing order** — then update the file.
-4. **Write, don't advise.** If the output is a document, create the file.
-
-## What happened in the session that produced this
-
-1. Phoenix shared a Figma Make prototype and said it felt *"boring and generic... not a
-   professional app feel"*.
-2. Audit found it had drifted from the repo spec into a different product — individual and
-   dating-first, a stock CartoDB basemap, emoji as the icon set, and two direct Tier 0
-   violations (a "Friends" map layer showing individual locations, and a raw vouch count).
-3. Eight rounds of structured questions established the product below — including a
-   **Tier 0 change** (group-first retired).
-4. The prototype was rebuilt from scratch as real code in `prototype-web/`.
-5. A second round of feedback shifted the visual identity to **chrome on black** and set
-   the base map direction to **MapLibre**.
-
----
-
-# PART 2 — PRODUCT REQUIREMENTS
-
-## The line
-
-> **"Func is just a bridge between you and the opportunities of the night."**
-> — Phoenix, 2026-08-07
-
-Func shows you what is actually on, and gets you in. It does **not** host the conversation,
-run the debate, or replace WhatsApp.
-
-Ambition, in his words: *"a sophisticated hub for the entire world to feel connected to the
-opportunities around them. not just some cheap app to access events."*
-
-("Func" = *function* = the party. The name is the category.)
-
-## The problem
-
-Deciding what to do tonight means checking Instagram, TikTok, Google, group chats,
-Eventbrite, club sites and promoter DMs — and still not knowing what a place is actually
-like right now, what it really costs, or whether anyone you know is there. The information
-exists; it is scattered across apps built for other jobs.
-
-## Principles — what Func refuses to do
-
-These are load-bearing. Breaking one is a product change, not a detail.
-
-1. **Func never rushes or tracks you.** No timers, no imposed schedule, no streaks, no
-   voting. Phoenix on why he rejected both a time-morphing map and a night timeline:
-   *"it means you have no commitment to the app - you dont feel tracked or rushed at all."*
-   He values that. The map just shows everything; you filter or search if you want.
-2. **No voting, ever.** *"no voting on the app for things to do thats dumb - people use
-   other apps to communicate."*
-3. **Func never takes your money.** Promotion and connection only — no payments, no
-   ticketing. *"I want func. to be able to work without depending on clubs or venues."*
-4. **Nobody appears on the map who did not turn it on for tonight.** Opt-in, per night,
-   self-expiring.
-5. **Emerald means life.** The interface is chrome; the only coloured thing in the entire
-   app is the city being alive. If everything is coloured, nothing means anything.
-6. **No emoji as iconography, anywhere.** This was the single loudest "AI prototype" tell
-   in the version Phoenix rejected.
-
-## ⚠️ TIER 0 — the constitution (do not change without Phoenix naming the thing)
-
-- The line: **Func is a bridge to the opportunities of the night.**
-- **Map-first.** The map is the centrepiece and primary interface, not a feature inside it.
-- **Never rushes or tracks you.**
-- **Party size, not group objects.** *"no groups. forget about that. any group system might
-  just create extra noise which deters people from wanting to use func."*
-  Resolved as: groups are a *number on a request*, like booking a restaurant —
-  "out with 4, looking for a table". Nothing to create, name or administrate.
-- **Presence is opt-in, per night, and expires by itself.**
-- **18+ with government-ID verification.** Women-first safety review of every social feature.
-- **B2B2C: free for users, venues pay — but Func must work without any venue.**
-
-### What the Tier 0 change retired (2026-08-07, Decision 012)
-
-Pool · Call It · In/Nah voting · Plan Flag · Convoy · the 10-minute auto-lock · the old line
-*"Func is where your group finds tonight"*. **Backing/vouches are deferred, not deleted** —
-*"We can fine tune vouches another time once the app is built."*
-
-**Cost Phoenix accepted knowingly:** market research had positioned the moat as "nobody owns
-groups-meeting-groups." That moat is gone. The differentiators are now the map, the traffic
-light, the pet and the brand. **This remains the sharpest open question** — see Part 4.
-
-## Users
-
-- **Primary:** 18–25, going out in San Francisco and Los Angeles. Launch cities, in dollars.
-- **Secondary:** promoters and venues, via business accounts.
-- Phoenix on user motivation, verbatim: *"stories show the vibe youre on to others and
-  profiles prove you are real and show who you are to others. A good profile = easier to
-  see girls for example."* Take this at face value — it is a real driver of the category
-  and the product should serve it honestly rather than pretend otherwise.
-
-## Structure — five tabs, map dead centre
-
-`Browse · Plans+Chats · MAP · Inbox · Profile`
-
-Phoenix's words: *"map (middle - app revolves around this), swipe/browse, profile, inbox +
-notifications (email style), chats + plans page."*
-
-## Features
-
-### 1. The map — the centrepiece
-- Real streets, rendered entirely in Func's own language. **Never a stock basemap.**
-- **Heat shown as glow only.** No numbers, no words on the map itself. Phoenix chose this
-  knowing the legibility trade-off; the words live in the venue sheet.
-- Venues with cost, vibe, and live stories posted from inside.
-- Friends and mutuals (friends-of-friends) if they chose to be visible tonight.
-- Local spots, after-parties (in afters mode), and the pet.
-- **Must be detailed when you zoom in** — buildings, texture, real geography.
-- **Must feel physically alive** — *"way more animated with physical activity and things to
-  do creating a physical change to the map of some sort like building popping up and the
-  glow."* Currently only half-delivered.
-- **Zooming out shows more city.** Never yanks you to the globe. Standard map behaviour.
-- The globe is reachable deliberately (button or deep pinch-out) and shows every Func city.
-
-### 2. Browse — swipe for anything
-*"a page where you can swipe for literally anything from cool dinner spots to after parties
-and hang outs. You set the filter and the app's future algorithm will recommend too based on
-age, profile type (traffic light profile system) and you can swipe through looking for things
-to do when you cant be bothered to use the map."*
-Cards cover: venues, tables, after-parties, local spots, and green-status people.
-
-### 3. The traffic light (canonical — Phoenix's exact definition)
-- 🟢 **Green** = DTF (down to func) — down to do anything, on the app to have fun
-- 🟠 **Amber** = checking things out casually, not ready to commit
-- 🔴 **Red** = inactive, not out at all
-- 🪩 **Disco ball** = premium account (super DTF)
-- 🥇 **Gold disco ball** = business account *(he flagged this as not fully decided)*
-
-This is also, almost for free, the recommendation engine — a green user at 11pm should see a
-visibly different city than an amber one.
-
-### 4. Access — the commitment mechanic
-**Request → host accepts → pass.** Party size is just a number on the request. Money changes
-hands at the door; Func never touches it. The accept is one of the four dopamine moments.
-
-### 5. Stories
-Postable from anywhere, but posts genuinely from inside a venue get a **verified mark** and
-appear on that venue. Attached to both the person and the place.
-
-### 6. Profile
-Photos + traffic light + bio (with Instagram link) + **government-ID verification**. Tokens.
-Vouches deferred. Keep it simple — this is what he asked for.
-
-### 7. After-parties
-**The address is revealed only when the host accepts you.** Safety and exclusivity in one
-mechanic, and the accept lands like a hit.
-
-### 8. Afters mode
-After midnight the app visibly changes personality — darker, looser, camera-first.
-
-### 9. Local spots + tokens
-Anyone drops a spot; they earn tokens when people actually visit it. Turns local knowledge
-into currency and gives Func something to do on a Tuesday.
-
-### 10. Night rating
-Quick, private-feeling. Feeds the map's accuracy rather than being a public review — Func
-should not pick a fight with Google Maps and TripAdvisor.
-
-### 11. The pet — "a very cute and friendly disco creature"
-*"micha and i were playing around with the idea of having a customisable pet that doubles as
-an ai assistant - a super helpful and intelligent assistant that is a genuinely impressive
-model but also fun and jumps around the screen with you and follows you on the map maybe -
-just a fun idea right now not complete."*
-Lives on the map, follows you through the night, reacts, genuinely helps. Customisable.
-Build it properly or not at all — Duolingo owl, not Clippy.
-
-### 12. Business accounts
-Post events and table offers · see and accept requests · message people who requested ·
-pay for visibility. Phoenix: *"once func. is big event managers and clubs will want func. to
-promote whatever they like."*
-
-### 13. Premium (disco ball)
-Be seen more · unlimited requests · see who wants you · early and exclusive access.
-
-## Deferred, not deleted
-
-Concierge subscription ladder · paid local-knowledge answers · calendar integration ·
-Backing/vouches · the time-of-night morphing map · the night timeline · bottle-service map
-markers. Phoenix on the map/timeline: *"start with neither and then we can build up from
-there"* — he wants them back later.
-
-## Design system
-
-- **Chrome / liquid metal on true black.** Sophisticated, cinematic, Apple-premium.
-- **Emerald only for life** — heat, traffic light, live stories. Nothing else is coloured.
-- **The eye is the motif.** Official logo: chrome `func.` lockup with an eye replacing the
-  "n", and a little person with arms raised whose head is the pupil.
-- Condensed uppercase display type + a clean UI sans.
-- **Zero emoji as iconography.** Custom icon set.
-- Real spring physics on every gesture. Nothing linear, nothing instant.
-- Designed empty, loading and pressed states.
-
-## The opening animation — must be followed closely
-
-Phoenix supplied a six-beat storyboard and said it *"must be copied as closely as possible in
-terms of storyline and featured animation points."* He called it vital: *"func.'s image is
-what will make it rise to the top immediately."*
-
-1. **Home Screen** — the func. app icon on the home screen
-2. **Logo Appears** — app opens to black, the chrome func. logo appears
-3. **Into the Eye** — the letters smoothly retract into the pupil, becoming one
-4. **Blink & Transform** — the eye blinks, the pupil becomes planet Earth
-5. **Expand & Zoom** — Earth fills the screen, zoom rapidly toward the city
-6. **Live Map** — land in the city, the live map appears
-
-## The demo — one whole night
-
-Phoenix: *"For the pitch we will go through the whole night e.g. starting off with early
-drinks/dinner then bar then club then after the club looking for a group of people hosting
-after party."*
-
-Audiences: **investors** (must believe the vision) and **app developers** (must understand
-the depth of what they would build). Delivered as a **shareable link** that opens
-full-screen on a phone.
-
-### The four dopamine moments — all built to full quality
-1. The open — eye → globe → dive, the city lighting up beneath you
-2. Getting accepted — the pass materialising, with weight and haptics
-3. The swipe — fast, physical, real spring throws
-4. Watching the city go live — heat rising, stories appearing, friends turning green
-
----
-
-# PART 3 — WHAT IS BUILT
-
-`prototype-web/` — real code, no build step, no dependencies.
-
-```bash
-cd "$HOME/Library/Mobile Documents/com~apple~CloudDocs/All Files/Func/prototype-web" && python3 -m http.server 8778
+```text
+open map → find an opportunity → understand context and visibility → join or request → host accepts → coordinate safely
 ```
 
-| File | What |
+### Primary outcome
+
+**A successful night enabled, not time spent in the app.**
+
+### Primary audience
+
+Adults approximately 18–25 who already go out socially, initially in San Francisco and Los Angeles. The research sample should begin with 18–22-year-olds who can describe their last real night-out decision.
+
+### Business audience
+
+Verified venues and promoters who need accountable business identity, event creation, request handling, and future demand tools. Business accounts are secondary to the consumer map and must not make Func dependent on venue participation.
+
+## 2. Invariants
+
+These are Tier 0 requirements and cannot be changed implicitly:
+
+- map first;
+- presence is explicitly enabled for tonight and expires automatically;
+- exact location is viewer-relative and permission-aware;
+- mutual activity is anonymous venue-level glow, never a person pin;
+- no forced schedules, timers, voting, streaks, or manipulative urgency;
+- party size is an attribute of a request, not a permanent administrated group;
+- 18+ identity verification is required for real social/location access;
+- every connection feature is reviewed for scams, stalking, harassment, and predatory behaviour;
+- private-place details are protected until the correct acceptance state;
+- a business identity cannot silently reveal its operator;
+- Func does not process payments or tickets in the current direction;
+- no emoji glyphs as interface iconography;
+- the app must not be used with real people or real locations while it remains client-only and seeded.
+
+## 3. Scope status vocabulary
+
+| Status | Meaning |
 |---|---|
-| `index.html` | Shell |
-| `styles.css` | Design system — chrome tokens, type, components |
-| `data/sfmap.js` | Real SF geometry: streets, water, parks, **3,449 buildings with heights** |
-| `data/seed.js` | Real venues at real coordinates, people, stories, tables, after-parties |
-| `app.js` | Map renderer, camera, opening animation, the pet, router |
-| `screens.js` | Venue sheet, browse deck, request→pass, afters, profile, globe |
-| `build_map.py`, `build_bld.py` | Regenerate map data from OpenStreetMap |
+| Prototype built | Demonstrated with seeded, in-memory data; not production security. |
+| Prototype incomplete | Some behaviour exists, but the product contract or states are incomplete. |
+| Production foundation | Required before real users, real locations, or a public pilot. |
+| Needs evidence | Direction is plausible but must be tested with target users or businesses. |
+| Deferred | Not in the current launch slice. |
+| Out of scope | Explicitly excluded unless a new decision is recorded. |
+| Decision required | Cannot be specified responsibly without a founder/product choice. |
 
-**Verified working by clicking through:** the opening (all six beats), the map with heat and
-extruding buildings, the venue sheet, request → "You're in" → QR pass, Browse swipe deck,
-Profile, the globe screen.
+## 4. Feature requirements
 
-**Built but not clicked through:** Plans, Inbox, the story reel, Afters mode, rate-the-night.
-No console errors.
+### SHELL-001 — Map-first application shell
 
-`FUNC.replayOpen()` in the console re-runs the opening animation.
+**Status:** Prototype built; final naming decision required.
 
----
+The map is the first and primary surface. The current prototype routes are:
 
-# PART 4 — WHERE TO TAKE IT NEXT
+- map: `app/(tabs)/index.tsx`;
+- create: `app/(tabs)/create.tsx`;
+- messages: `app/(tabs)/messages.tsx`;
+- inbox: `app/(tabs)/inbox.tsx`;
+- profile: `app/(tabs)/profile.tsx`;
+- detail routes for venue, invite, review, and thread.
 
-Phoenix asked for this handoff to *"take this in a slightly different direction (making it
-better)"*. Treat Tier 0 as fixed and everything else as open to being made better.
+The target product may rename Create to Discover/Browse and Messages to Plans, but no rename is an implementation requirement until `OD-001` is resolved.
 
-## Committed next steps
+**Acceptance criteria:** the map can be reached immediately; supporting surfaces never obscure the map’s role; navigation labels are consistent across app, Bible, PRD, and deck.
 
-1. **MapLibre + a custom Func style.** Phoenix's call. Use **OpenFreeMap** for tiles — free,
-   no API key, no billing account. Gives global coverage, native 3D building extrusions and
-   standard zoom. Explicitly **not** Google Maps: it needs billing and cannot be
-   art-directed far enough — it would look generic again, which is the original complaint.
-2. **Real logo assets.** Phoenix is dropping the official chrome logo and app icon into
-   `inbox/`. Use the real artwork for icon and splash; keep vector only where it animates.
-3. **Make the map physically alive.** Currently buildings rise and heat glows, but nothing
-   *moves*. This is an explicit, unmet request.
+### MAP-001 — Globe and city map
 
-## Known gaps
+**Status:** Prototype built.
 
-- The chrome identity is applied to the map, tab bar, buttons and sheets, but not yet
-  everywhere.
-- The Earth in the opening is stylised vector, not photoreal.
-- The pet is charming but does not yet do anything genuinely intelligent.
+The map uses Mapbox and deliberate globe access. It must support real geography, normal zoom, safe loading/fallback states, and a future Func-specific visual style. The current schematic fallback is a demo fallback, not the intended production map.
 
-## The open strategic question — worth solving properly
+**Required states:** token unavailable, network unavailable, permission unavailable, loading, empty city, populated city, selected item, cluster, and reduced motion.
 
-Without group-first, the honest answer to **"why can't Instagram or Google Maps just do
-this?"** is the map, the traffic light, the pet and the brand. That is defensible —
-Snapchat won on less — but investors will ask it directly and the deck does not have a
-sharp answer. Phoenix accepted this knowingly. **Sharpening it is probably the highest-value
-strategic work available**, and a good candidate for the "slightly different direction".
+**Production requirements:** real map data policy, pricing/licensing review, performance testing, map style ownership, caching/offline policy, and abuse-resistant venue data.
 
-Places worth pushing, none of them agreed yet:
-- The traffic light is more original than it currently looks. A city that visibly re-sorts
-  itself around your state is something no competitor has.
-- "Bridge, not host" is a genuinely contrarian position in a market built on engagement
-  farming. It could be the whole brand rather than an internal principle.
-- The pet as an actual AI concierge is the most defensible moat on the table, and the least
-  developed.
+### MAP-002 — Venue and opportunity objects
 
-## ⚠️ Every deck generated before 2026-08-22 is stale
+**Status:** Prototype built; visual system incomplete.
 
-Decks from before 2026-08-07 tell a story about groups that is no longer true. Decks from
-2026-08-07 to 2026-08-21 predate the Tier 0 "safe by construction" item (Decision 016) and
-are stale by the identity doc's rule. Do not send one.
+Venues and public invitations appear as distinct, selectable map objects. Object meaning must not rely on colour alone. Tapping an object opens a spatially anchored preview; the preview may expand into a detail surface without losing its venue relationship.
 
----
+**Acceptance criteria:** co-located venue, business, and event items remain independently discoverable; a user can return to the map without losing context; the selected object is clear under accessibility settings.
 
-**Note (added 2026-08-11, engineering sync):** MapLibre (committed next step #1 above) has
-since shipped — see `func-app/HANDOVER.md` and commit `cf39f79`. The engineering side of the
-product has moved from `prototype-web/` into `func-app/` (TypeScript + React Native).
-`func-app/HANDOVER.md` and `func-app/FUNCTIONAL-INVENTORY.md` are the current build state;
-this document remains the product-requirements record.
+### MAP-003 — Anonymous live energy
+
+**Status:** Prototype built; user evidence needed.
+
+Qualifying mutual presence can contribute to venue-level glow. It must never reveal a person, name, avatar, count, coordinate, or unsupported heat claim.
+
+**Acceptance criteria:** fewer than the qualifying threshold produces no glow; malformed or expired presence fails closed; glow remains visually secondary to opportunities; a non-colour cue exists wherever state is actionable.
+
+### PRES-001 — Nightly presence
+
+**Status:** Prototype built; production foundation required.
+
+The user chooses DTF, Casual, or Off. DTF may qualify for exact friend visibility subject to relationship, current location fix, and expiry rules. Casual does not create a person pin. Off removes peer-visible location immediately. Expiry is automatic at the defined local boundary.
+
+**Required production states:** permission request, permission denied, stale fix, future-dated fix, expired presence, user-initiated off, account suspension, device/session mismatch, and recovery after reconnect.
+
+### PRES-002 — Viewer-relative disclosure
+
+**Status:** Prototype built; production server enforcement required.
+
+The UI receives a limited viewer view rather than raw people, relationships, or coordinates. See `docs/PRIVACY_AND_SAFETY.md`.
+
+**Acceptance criteria:** no screen bypasses the viewer projection; unauthorised viewers receive neutral absence rather than clues; hidden data cannot be recovered through deep links, selection state, messages, or errors.
+
+### POOL-001 — Create invitation
+
+**Status:** Prototype built; production state machine required.
+
+A personal or eligible verified business host creates an invitation with public or private access, venue or protected private place, capacity or uncapped capacity, party-size expectations, human-readable details, and host identity appropriate to the active persona.
+
+Public invitations must be anchored to a known commercial venue. Private invitations must not expose exact location to outsiders or pending requesters.
+
+### POOL-002 — Join or request access
+
+**Status:** Prototype built; demand and trust evidence required.
+
+An eligible person can join a public invitation immediately subject to capacity, or request a private invitation with party size and an optional permitted pre-accept message.
+
+**Required states:** unavailable, full, already joined, already requested, blocked, pending, accepted, declined, revoked, expired, network retry, and malformed invitation.
+
+### POOL-003 — Host review and acceptance
+
+**Status:** Prototype built; production concurrency and moderation required.
+
+The host sees pending requests grouped by invitation, with only the identity and party information permitted by policy. Accept and decline must be atomic and idempotent. Capacity must be checked again at commit time.
+
+**Acceptance criteria:** no over-capacity acceptance; no partial state where a person is admitted without the correct conversation; blocked or reported users are handled through policy; every decision can be audited in production.
+
+### POOL-004 — Accepted reveal and bounded conversation
+
+**Status:** Prototype built; pass semantics unresolved.
+
+After acceptance, the host and accepted attendees receive the exact private details permitted by policy and the relevant Pool conversation. Outsiders and denied users receive a neutral result.
+
+The product language says “pass,” but its technical meaning is unresolved. See `OD-002` in `docs/OPEN_DECISIONS.md`.
+
+### MSG-001 — Request and Pool messaging
+
+**Status:** Prototype built; production messaging foundation required.
+
+Messages are identity-scoped, participant-only, and request-gated where applicable. Business messages use the venue persona, not the operator’s personal identity.
+
+**Production requirements:** real-time delivery, push notifications, message retention/deletion, links and media policy, report/block, rate limits, spam controls, moderation, and safety escalation.
+
+### PROFILE-001 — Personal identity
+
+**Status:** Prototype incomplete.
+
+The prototype demonstrates a seeded personal profile and status. Production requires real account creation, editing, photo/media policy, identity verification, privacy settings, recovery, deletion, block/report, and age-safe display rules.
+
+### BUSINESS-001 — Verified business identity
+
+**Status:** Prototype built; production verification required.
+
+Businesses have separate personas and verification states. A verified business may host its own venue-linked invitation. An unverified business may retain a profile but cannot present as trusted or publish a trusted event.
+
+Business-specific fields, operator roles, appeals, venue claims, suspension, and promotion permissions remain open in `OD-003`.
+
+### DISC-001 — Discover / Browse
+
+**Status:** Prototype incomplete; needs evidence.
+
+The prototype includes search, categories, privacy-safe invite cards, and distance ordering. A future Browse surface may include Live Near You, Near You, and category rows. A swipe/card-stack interaction is not current scope and must not be presented as built.
+
+### STORY-001 — Live venue proof
+
+**Status:** Prototype incomplete; separate safety specification required.
+
+Text stories and seeded content exist as scaffolding. A production media story system must define media capture, venue attachment, authenticity proof, expiry, audience, storage/transcoding, moderation, face/privacy treatment, reporting, and deletion. Do not silently equate current text stories with a production Flares system.
+
+## 5. Required user flows
+
+Every flow must specify entry, preconditions, actions, server transitions, read-model updates, notifications, success, empty, loading, error, permission, privacy disclosure, abuse controls, analytics, and accessibility.
+
+### Flow A — Open and discover
+
+1. Launch into map shell.
+2. Show appropriate loading state.
+3. Resolve map token/network/permission state.
+4. Render safe opportunities and approved live energy.
+5. Select a cluster or object.
+6. Show anchored preview.
+7. Open detail or return to map.
+
+### Flow B — Enable nightly presence
+
+1. Explain the three states and who can see what.
+2. Request permission only when necessary.
+3. Choose DTF or Casual.
+4. Show expiry and current visibility.
+5. Allow immediate Off.
+6. Handle denial, stale data, malformed data, and automatic expiry.
+
+### Flow C — Join a public invitation
+
+1. Open a public venue/invitation.
+2. Show disclosed practical information.
+3. Choose party size.
+4. Validate capacity.
+5. Join idempotently.
+6. Show confirmation/pass state according to `OD-002`.
+7. Enter bounded conversation if applicable.
+
+### Flow D — Request a private invitation
+
+1. Show only safe area/plan information.
+2. Choose party size.
+3. Add optional permitted message.
+4. Submit request idempotently.
+5. Show pending state.
+6. Host reviews.
+7. Accepted state reveals only permitted details.
+8. Declined, blocked, revoked, expired, and error states remain neutral and safe.
+
+### Flow E — Business publishing
+
+1. Switch to business persona.
+2. Verify eligibility.
+3. Select a known venue.
+4. Enter event fields.
+5. Validate and publish.
+6. Receive and review requests through the business identity.
+7. Handle verification loss, cancellation, reports, and suspension.
+
+## 6. Non-functional requirements
+
+### Privacy and safety
+
+See the dedicated safety specification. The production server must enforce the same policy the prototype models, with audit events for sensitive disclosure.
+
+### Accessibility
+
+- never rely on colour alone;
+- provide reduced-motion equivalents;
+- preserve readable contrast over artwork and glass;
+- make permission and privacy copy understandable without animation or sound;
+- support dynamic text without clipping critical actions;
+- ensure map objects have accessible labels and actions.
+
+### Performance and reliability
+
+- map and opportunity surfaces must have explicit loading/error/empty states;
+- commands must be idempotent where retries can duplicate access or messages;
+- viewer-scoped payloads must remain bounded and paginated;
+- production must have crash reporting, observability, and rollback capability;
+- native device verification is required before public distribution.
+
+### Measurement
+
+The initial research measures are comprehension, task completion, trust, willingness to create/request/accept, and the alternative users would otherwise choose. Production measures include successful nights, time to useful discovery, acceptance response time, repeat nights, report/block rate, response time to safety cases, and serious incident rate.
+
+## 7. Production gates
+
+### Gate 0 — Truth and demand
+
+- Bible, PRD, tracker, design system, and deck agree;
+- 10–15 moderated target-user sessions complete the core loop;
+- navigation, pass semantics, business scope, and launch slice are resolved.
+
+### Gate 1 — Production foundation
+
+- real accounts and sessions;
+- age and business verification;
+- persistent server-authoritative state;
+- server-side redaction;
+- presence expiry and abuse controls;
+- Pool state machine;
+- messaging and notifications;
+- report/block/moderation/escalation;
+- rate limits, auditability, analytics, retention/deletion controls.
+
+### Gate 2 — Controlled alpha
+
+One city, small adult cohort, trusted hosts/venues, manual moderation and support, independent security/safety review, and clear incident response.
+
+## 8. Explicit non-goals for this PRD version
+
+- payments or ticketing;
+- Call It, voting, In/Nah, Plan Flags, or Convoy;
+- a permanent group/community system;
+- global recommendation intelligence;
+- pet/AI companion implementation;
+- premium entitlement implementation;
+- Backing/vouches implementation;
+- full media story platform;
+- global multi-city operations;
+- any claim that the prototype is production-secure.
+
+## 9. Evidence and known prototype residuals
+
+At the current local checkpoint, the prototype has 147 test cases in the existing harness, with 144 passing and three known pre-authorised residual failures: two stale `livePinFor` references and one compile-only type test that throws if executed. Typecheck has the same stale `livePinFor` import residual. These are not to be “fixed” by restoring the removed API. They must be clearly separated from product evidence in any presentation.

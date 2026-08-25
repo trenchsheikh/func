@@ -14,6 +14,13 @@ used with real people or real positions until backend authentication,
 server-side redaction, government-ID and business verification, reporting,
 blocking, moderation, rate limits, and auditability exist.
 
+The current product and developer source-of-truth pack is maintained one level
+up: [`docs/FUNC_BIBLE.md`](../docs/FUNC_BIBLE.md), [`docs/PRD.md`](../docs/PRD.md),
+[`docs/FEATURE_MATRIX.md`](../docs/FEATURE_MATRIX.md),
+[`docs/PRIVACY_AND_SAFETY.md`](../docs/PRIVACY_AND_SAFETY.md), and
+[`docs/DEVELOPER_HANDOFF.md`](../docs/DEVELOPER_HANDOFF.md). Older product-era
+documents remain for historical provenance and must not override that pack.
+
 ## Run it
 
 ```bash

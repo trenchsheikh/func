@@ -1,90 +1,57 @@
 # Func — Product Thesis
 
-*One page. If this stops being true, we change the product, not the page.*
-
-**Version 4.0 — 2026-08-22.** Tier 0 last changed: 2026-08-22 (Decision 016, additive:
-"safe by construction"). Every deck generated before this date is stale.
+**Version:** 5.0 draft
+**Date:** 2026-08-25
+**Status:** Current local product truth; founder review required
+**Canonical implementation:** `func-mobile` — Expo SDK 57, React Native, TypeScript, Mapbox
 
 ## The line
 
-**Func is just a bridge between you and the opportunities of the night.**
+**Func is a bridge between you and the opportunities of the night.**
 
-Func shows you what is actually on, and gets you in. It does not host the
-conversation, run the debate, or replace WhatsApp.
-
-("Func" = *function* = the party. The name is the category.)
+Func shows what is happening, shows people or places only when permission allows, and helps someone take a safe next step. It does not replace WhatsApp, force a schedule, or optimise for time spent.
 
 ## The problem
 
-Deciding what to do tonight means checking Instagram, TikTok, Google, group chats,
-Eventbrite, club sites and promoter DMs — and still not knowing what a place is
-actually like right now, what it really costs, or whether anyone you know is there.
-The information exists; it is scattered across apps that were built for other jobs.
+Deciding what to do tonight means checking Instagram, TikTok, Google Maps, event pages, venue sites, promoter messages, and group chats. The information exists, but the useful answer is fragmented: what is actually happening, who is open, what does it feel like, and can I participate safely?
 
 ## The product
 
-1. **The map** (the centrepiece). Real streets, rendered in Func's own language.
-   Live heat shown as **glow only** — no numbers, no claims it cannot back. Venues
-   with what they cost, what the night is, and live stories posted from inside.
-   Friends and mutuals if they chose to be visible tonight.
-2. **Browse.** One swipe surface for anything on — dinner, bars, clubs, table
-   offers, after-parties, local spots, and people who are out. For when you cannot
-   be bothered with the map.
-3. **The traffic light.** 🟢 DTF · 🟠 casually looking · 🔴 not out · 🪩 premium ·
-   🥇 business. Everyone's state is legible, so nobody wastes anybody's time. It is
-   also, almost for free, the recommendation engine.
-4. **Access.** Request → the host accepts → you get a pass. Party size is just a
-   number on the request, like booking a restaurant.
-5. **The pet.** A cute disco creature that lives on your map, follows you through
-   the night, and genuinely helps. The thing people screenshot.
-6. **Afters.** After midnight the app changes personality — darker, looser,
-   camera-first. After-party addresses are revealed only when the host accepts you.
+1. **Map first.** A living city map shows venues, opportunities, approved friend context, and anonymous live energy without unsupported heat claims.
+2. **Nightly presence.** DTF, Casual, or Off. Presence is explicit, temporary, self-expiring, and viewer-relative.
+3. **Pool access.** A host creates an invitation; a person joins or requests; the host accepts or declines; accepted people coordinate in a bounded conversation.
+4. **Private-place protection.** Sensitive locations reveal only to the host and accepted attendees.
+5. **Verified business identities.** Venues and promoters can publish through accountable, opaque venue personas rather than exposing operators.
+6. **Discovery support.** Search, categories, and opportunity cards support the map. They do not become an infinite content feed.
 
 ## What Func refuses to do
 
-- **Never rushes or tracks you.** No timers, no imposed schedule, no streaks, no
-  voting mechanics. You are never being herded.
-- **Never takes your money.** Promotion and connection only — no payments, no
-  ticketing. Func must work without depending on a single venue.
-- **Never puts anyone on the map who did not turn it on for tonight.**
+- expose a person who did not choose to be visible;
+- use forced timers, streaks, voting, or manipulative urgency;
+- turn party size into a permanent group-management system;
+- process payments or tickets in the current direction;
+- make client-side simulation look like production security;
+- use emoji glyphs as interface iconography;
+- silently reveal private addresses, operator identities, or hidden threads.
 
-## Why now
+## Why it could matter
 
-Discovery for going out is still split across apps that were built for other
-things, and Gen Z is measurably tired of being manipulated by all of them. An app
-whose entire pitch is *we show you what's on and get you in, then get out of your
-way* is a genuinely different posture.
+The opportunity is not another social feed. It is a specialised nightlife graph combining intent, current opportunity, trusted host supply, safe access, and successful real-world outcomes. The map, visual identity, and privacy model are foundations; the moat is only earned through density, repeated use, reliable hosts, and trust.
 
-## Business model
+## Current truth
 
-B2B2C. Free for users; density first. Promoters and venues get business accounts —
-post events and table offers, accept requests, message people who requested, and pay
-for visibility. Consumer premium (the disco ball) sells being seen more, unlimited
-requests, seeing who wants you, and early access. City by city: **San Francisco and
-Los Angeles first.**
+The active mobile prototype demonstrates the map, globe, presence, privacy projections, Pool flows, private-place redaction, messaging, business personas, and verified-business event rules with seeded in-memory data. It has no real accounts, backend, persistence, government-ID verification, server-side enforcement, moderation operation, rate limits, or auditability. It must not be used with real people or real locations.
 
-## Riskiest assumptions (in order)
+## Riskiest assumptions
 
-1. **Differentiation.** Without group-first, the moat is the map, the traffic light,
-   the pet and the brand. "Why can't Instagram or Google Maps do this?" needs a
-   sharper answer than we currently have. *(Accepted knowingly — Decision 012.)*
-2. Enough people set a traffic light honestly for it to mean anything.
-3. Hosts and promoters actually accept requests fast enough for the loop to feel live.
-4. We can seed one city to density before a funded copycat.
-5. Moderation and ID-verification costs survive at student price points.
+1. Adults will create and accept Pool invitations rather than stay in existing habits.
+2. People will understand and trust the visibility controls enough to enable presence.
+3. Hosts and venues will respond quickly enough for the loop to feel useful.
+4. One city can be seeded to useful density before expansion.
+5. Production verification, moderation, and safety operations can be made viable at the intended price point.
 
-## Current status
+## What happens next
 
-Pre-launch. The investor/developer prototype is **built and running** in
-`prototype-web/` — real San Francisco geometry, the full night arc from the eye-and-globe
-open through to afters.
+Run 10–15 moderated prototype sessions through the map → discover → request → review → acceptance → safe reveal loop. Use the results to choose the next product milestone. Then build the production foundation: trusted accounts, server-side privacy, verification, moderation, reporting, blocking, rate limits, auditability, and observability.
 
----
-
-**Note (added 2026-08-11, engineering sync):** the product has since moved past this
-prototype into `func-app/` (TypeScript + React Native, Stages 0–5 + MapLibre
-delivered). `func-app/HANDOVER.md` is the current engineering state. One point above is
-superseded there under explicit founder direction: **Afters mode was removed entirely**
-on 2026-08-09 — "func behaves identically at 9pm and 3am." After-parties themselves
-stayed and became permanently visible; the mode wrapper (personality shift, toggle,
-nudge banner) did not. See `func-app/HANDOVER.md` §2 and `team/standing-orders.md`.
+The product should feel like **a bright, living city map held inside a premium black-and-silver instrument**. Excitement comes from the city being alive, not from pressuring the user to remain inside Func.
