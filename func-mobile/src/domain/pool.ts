@@ -32,11 +32,13 @@ function isValidPoolSize(n: unknown): n is number {
  * If any accepted attendee's party size is non-finite, fractional,
  * non-positive, or excessive, the true occupancy is unknown and possibly
  * unbounded -- treating it as 0 would *undercount* seats taken and let
- * seatsLeft/isFull silently over-report room. Instead this returns +Infinity,
- * which is not NaN (comparisons with it are well-defined) and, subtracted
- * from any valid capacity.max in seatsLeft, always floors to 0 seats left --
- * failing closed to "full" for capped invites, exactly like an invalid
- * capacity.max already does.
+ * seatsLeft/isFull silently over-report room. Instead this returns
+ * MAX_POOL_SIZE: every valid capacity.max is by definition <= MAX_POOL_SIZE
+ * (see isValidPoolSize), so subtracting MAX_POOL_SIZE from any valid
+ * capacity.max in seatsLeft always floors to 0 seats left -- failing closed
+ * to "full" for capped invites, exactly like an invalid capacity.max
+ * already does -- while keeping seatsTaken itself a finite number, safe for
+ * any future direct caller.
  */
 export function seatsTaken(invite: PoolInvite, partySizeOf: (groupId: string) => number): number {
   let sum = 0;
@@ -44,7 +46,7 @@ export function seatsTaken(invite: PoolInvite, partySizeOf: (groupId: string) =>
     if (g === invite.hostGroupId) continue;
     const rec = invite.requests.find((r) => r.requestingGroupId === g && r.status === 'accepted');
     const size = rec?.partySize ?? partySizeOf(g);
-    if (!isValidPoolSize(size)) return Number.POSITIVE_INFINITY;
+    if (!isValidPoolSize(size)) return MAX_POOL_SIZE;
     sum += size;
   }
   return sum;

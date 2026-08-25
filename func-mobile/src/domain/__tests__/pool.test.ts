@@ -63,21 +63,25 @@ test('MAX_POOL_SIZE is a conservative, documented, positive integer bound', () =
   assert.ok(Number.isInteger(MAX_POOL_SIZE) && MAX_POOL_SIZE > 0);
 });
 
-test('seatsTaken fails closed to +Infinity (never 0, never NaN) when any accepted attendee has an invalid party size', () => {
+test('seatsTaken fails closed to MAX_POOL_SIZE (never 0, never non-finite) when any accepted attendee has an invalid party size', () => {
   // An undercount (treating a corrupt attendee as 0) would make seatsLeft
   // over-report room for a capped invite -- the true occupancy is unknown
   // and possibly unbounded, so seatsTaken must signal "unsafe", not "empty".
+  // MAX_POOL_SIZE (not Infinity/NaN) keeps the return value finite: every
+  // valid capacity.max is <= MAX_POOL_SIZE, so it's still enough to force
+  // seatsLeft to 0 for any capped invite.
   for (const bad of BAD_SIZES) {
     const inv = capInvite({
       attendeeGroupIds: ['g_host', 'g_bad'],
       requests: [{ requestingGroupId: 'g_bad', partySize: bad, status: 'accepted' }],
     });
     const taken = seatsTaken(inv, () => 1);
-    assert.equal(taken, Number.POSITIVE_INFINITY, `bad party size ${bad} must make seatsTaken unsafe, not 0`);
+    assert.equal(taken, MAX_POOL_SIZE, `bad party size ${bad} must make seatsTaken unsafe, not 0`);
+    assert.ok(Number.isFinite(taken), `bad party size ${bad} must keep seatsTaken finite`);
   }
 });
 
-test('a single corrupt accepted attendee among otherwise-valid ones still fails seatsTaken closed', () => {
+test('a single corrupt accepted attendee among otherwise-valid ones still fails seatsTaken closed to MAX_POOL_SIZE', () => {
   const inv = capInvite({
     attendeeGroupIds: ['g_host', 'g_a', 'g_bad', 'g_b'],
     requests: [
@@ -86,7 +90,7 @@ test('a single corrupt accepted attendee among otherwise-valid ones still fails 
       { requestingGroupId: 'g_b', partySize: 3, status: 'accepted' },
     ],
   });
-  assert.equal(seatsTaken(inv, () => 1), Number.POSITIVE_INFINITY);
+  assert.equal(seatsTaken(inv, () => 1), MAX_POOL_SIZE);
 });
 
 test('regression: a corrupt accepted attendee blocks a capped invite -- seatsLeft is 0 and isFull rejects any incoming party', () => {
