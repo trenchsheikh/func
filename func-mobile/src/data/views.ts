@@ -245,6 +245,19 @@ function buildInviteCard(
   };
 }
 
+/**
+ * True iff `threadId` resolves to a thread this viewer would actually see
+ * in their own thread list -- the same participant/sender integrity rule
+ * `resolveThreadIdentities` applies to the visible-threads projection,
+ * plus the same "viewer's own group is a participant" requirement. Reused
+ * here so `AcceptedPlanView.threadId` can never point at a thread the
+ * projection would otherwise hide -- one rule, not two that could drift.
+ */
+function isViewerVisibleThread(s: Snapshot, ctx: ViewerContext, threadId: string): boolean {
+  const t = s.threads.find((th) => th.id === threadId);
+  return !!t && t.participantGroupIds.includes(ctx.viewerGroupId) && resolveThreadIdentities(s, t) !== null;
+}
+
 function buildInviteDetail(
   s: Snapshot,
   invite: PoolInvite,
@@ -279,7 +292,7 @@ function buildInviteDetail(
       : undefined;
 
   const plan: AcceptedPlanView | undefined =
-    relation === 'host' || relation === 'attending'
+    (relation === 'host' || relation === 'attending') && isViewerVisibleThread(s, ctx, invite.groupChatId)
       ? {
           inviteId: invite.id,
           threadId: invite.groupChatId,

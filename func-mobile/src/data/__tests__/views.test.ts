@@ -414,3 +414,117 @@ test('no malformed participant or sender identity leaks into people or any threa
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// AcceptedPlanView.threadId must never point at a thread the viewer
+// projection has itself filtered out (Stage 11, adjacent gap found during
+// thread-integrity review).
+// ---------------------------------------------------------------------------
+
+function hostInvite(id: string, groupChatId: string): PoolInvite {
+  return {
+    id,
+    hostGroupId: 'g_maya',
+    description: 'plan-thread test invite',
+    location: { lat: 37.76, lng: -122.42 },
+    capacity: { mode: 'uncapped' },
+    access: { mode: 'private' },
+    requests: [],
+    attendeeGroupIds: ['g_maya'],
+    groupChatId,
+    createdByAccountType: 'personal',
+    createdAt: NOW.toISOString(),
+  };
+}
+
+test('a valid accepted plan still includes its threadId', () => {
+  const seed = buildSeed(NOW);
+  const invite = hostInvite('inv_valid_plan', 'thr_valid_plan');
+  const validThread: ChatThread = {
+    id: 'thr_valid_plan',
+    kind: 'pool',
+    title: 'valid plan thread',
+    participantGroupIds: ['g_maya'],
+    poolInviteId: 'inv_valid_plan',
+    messages: [{ id: 'm1', senderUserId: 'u_maya', text: 'hi', sentAt: NOW.toISOString() }],
+  };
+  const snap: Snapshot = { ...seed, invites: [...seed.invites, invite], threads: [...seed.threads, validThread] };
+
+  const view = viewFor(snap, NOW);
+  const detail = view.inviteDetails.get('inv_valid_plan');
+  assert.ok(detail);
+  assert.equal(detail?.viewer.relation, 'host');
+  assert.ok(detail?.plan);
+  assert.equal(detail?.plan?.threadId, 'thr_valid_plan');
+});
+
+test('a missing groupChatId thread removes plan entirely, never leaking a dangling threadId', () => {
+  const seed = buildSeed(NOW);
+  const invite = hostInvite('inv_missing_thread', 'thr_does_not_exist');
+  const snap: Snapshot = { ...seed, invites: [...seed.invites, invite] };
+
+  const view = viewFor(snap, NOW);
+  const detail = view.inviteDetails.get('inv_missing_thread');
+  assert.ok(detail);
+  assert.equal(detail?.viewer.relation, 'host');
+  assert.equal(detail?.plan, undefined);
+});
+
+test('a malformed participant/sender thread removes plan entirely, never leaking its threadId', () => {
+  const seed = buildSeed(NOW);
+  const invite = hostInvite('inv_malformed_thread', 'thr_malformed_plan');
+  const malformedThread: ChatThread = {
+    id: 'thr_malformed_plan',
+    kind: 'pool',
+    title: 'malformed',
+    participantGroupIds: ['g_maya', 'g_ghost_missing'], // one dangling participant group
+    poolInviteId: 'inv_malformed_thread',
+    messages: [],
+  };
+  const snap: Snapshot = {
+    ...seed,
+    invites: [...seed.invites, invite],
+    threads: [...seed.threads, malformedThread],
+  };
+
+  const view = viewFor(snap, NOW);
+  const detail = view.inviteDetails.get('inv_malformed_thread');
+  assert.ok(detail);
+  assert.equal(detail?.viewer.relation, 'host');
+  assert.equal(detail?.plan, undefined);
+  // The malformed thread must also be absent from the viewer's own thread
+  // list (existing rule, unaffected) -- both projections stay consistent.
+  assert.equal(view.threads.some((t) => t.id === 'thr_malformed_plan'), false);
+});
+
+test('no invite detail ever exposes a plan.threadId that is not itself a viewer-visible thread', () => {
+  const seed = buildSeed(NOW);
+  const missingThreadInvite = hostInvite('inv_missing_thread_2', 'thr_still_does_not_exist');
+  const malformedThreadInvite = hostInvite('inv_malformed_thread_2', 'thr_malformed_plan_2');
+  const malformedThread: ChatThread = {
+    id: 'thr_malformed_plan_2',
+    kind: 'pool',
+    title: 'malformed',
+    participantGroupIds: ['g_maya', 'g_ghost_missing_2'],
+    poolInviteId: 'inv_malformed_thread_2',
+    messages: [],
+  };
+  const snap: Snapshot = {
+    ...seed,
+    invites: [...seed.invites, missingThreadInvite, malformedThreadInvite],
+    threads: [...seed.threads, malformedThread],
+  };
+
+  const view = viewFor(snap, NOW);
+  const visibleThreadIds = new Set(view.threads.map((t) => t.id));
+  let checkedAtLeastOnePlan = false;
+  for (const detail of view.inviteDetails.values()) {
+    if (!detail.plan) continue;
+    checkedAtLeastOnePlan = true;
+    assert.ok(
+      visibleThreadIds.has(detail.plan.threadId),
+      `invite ${detail.id}'s plan.threadId ${detail.plan.threadId} must be a viewer-visible thread`,
+    );
+  }
+  assert.ok(checkedAtLeastOnePlan, 'sanity: at least one real invite in this view must still have a plan');
+});
