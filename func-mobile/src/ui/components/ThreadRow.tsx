@@ -15,7 +15,12 @@ export function ThreadRow({ thread }: { thread: ThreadView }) {
   const other = thread.kind === 'dm' ? thread.participants.find((p) => p.id !== view.self.id) : undefined;
   const sender = last ? view.people.get(last.senderId) : undefined;
   return (
-    <Pressable style={styles.row} onPress={() => router.push({ pathname: '/thread/[id]', params: { id: thread.id } })}>
+    <Pressable
+      style={styles.row}
+      onPress={() => router.push({ pathname: '/thread/[id]', params: { id: thread.id } })}
+      accessibilityRole="button"
+      accessibilityLabel={thread.title}
+    >
       {thread.kind === 'dm' ? (
         <Avatar user={other ? avatarUserOf(other) : undefined} size={42} />
       ) : (

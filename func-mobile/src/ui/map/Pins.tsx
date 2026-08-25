@@ -204,11 +204,11 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: 'rgba(34, 197, 94, 0.14)',
+    backgroundColor: colors.dtfGlowOuter,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glowInner: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(34, 197, 94, 0.2)' },
+  glowInner: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.dtfGlowInner },
   selectedRing: { borderColor: colors.highlight, borderWidth: 2 },
   selectedHalo: { borderRadius: 16, borderWidth: 2, borderColor: colors.highlight, padding: 1 },
 });

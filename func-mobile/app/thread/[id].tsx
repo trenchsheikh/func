@@ -79,7 +79,13 @@ export default function ThreadScreen() {
             style={styles.input}
             multiline
           />
-          <Pressable onPress={send} style={styles.send} accessibilityLabel="Send">
+          <Pressable
+            onPress={send}
+            style={styles.send}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Send"
+          >
             <Text style={{ color: colors.bg, fontWeight: '700' }}>Send</Text>
           </Pressable>
         </View>

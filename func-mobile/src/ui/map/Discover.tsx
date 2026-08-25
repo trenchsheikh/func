@@ -9,7 +9,7 @@ import { viewerLocation } from '@/ui/viewerGeo';
 import { BackIcon } from '../components/Icons';
 import { InviteCard } from '../components/InviteBits';
 import { Body, Eyebrow, GlassCard, Pill, Row, Small } from '../components/Primitives';
-import { categoryColor, categoryLabel, colors, priceSymbols, radius, space } from '../theme';
+import { categoryColor, categoryLabel, colors, font, priceSymbols, radius, space } from '../theme';
 import { browseSections, type Item } from './browse';
 
 type Props = {
@@ -93,6 +93,7 @@ export function Discover({ onClose, onPickInvite, onPickVenue, onPickArea }: Pro
           style={styles.input}
           returnKeyType="search"
           clearButtonMode="while-editing"
+          accessibilityLabel="Search area, category, or night"
         />
       </Row>
       <FlatList
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: 16,
     paddingVertical: 11,
-    fontSize: 15,
+    fontSize: font.body.fontSize,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -177,5 +178,5 @@ const styles = StyleSheet.create({
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
   venueRow: { padding: space.md },
-  hint: { color: colors.faint, fontSize: 11, textAlign: 'center', paddingBottom: 8 },
+  hint: { color: colors.faint, fontSize: font.tiny.fontSize, textAlign: 'center', paddingBottom: 8 },
 });

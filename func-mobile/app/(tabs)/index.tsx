@@ -56,7 +56,12 @@ export default function MapScreen() {
 
       {/* search bar → discovery */}
       <View style={[styles.top, { top: insets.top + 8 }]}>
-        <Pressable style={styles.search} onPress={() => setDiscoverOpen(true)} accessibilityRole="search">
+        <Pressable
+          style={styles.search}
+          onPress={() => setDiscoverOpen(true)}
+          accessibilityRole="search"
+          accessibilityLabel="Search"
+        >
           <SearchIcon color={colors.muted} size={18} />
           <Text style={styles.searchText}>Search an area, a category, a night…</Text>
         </Pressable>
@@ -66,7 +71,13 @@ export default function MapScreen() {
       {/* selected pin preview */}
       {selected && !discoverOpen ? (
         <View style={[styles.card, { bottom: 14 }]}>
-          <Pressable style={styles.close} onPress={() => setSelectedId(null)} hitSlop={8}>
+          <Pressable
+            style={styles.close}
+            onPress={() => setSelectedId(null)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close preview"
+          >
             <CloseIcon color={colors.muted} size={16} />
           </Pressable>
           {selected.kind === 'venue' ? <VenuePreview pin={selected} /> : null}
@@ -121,7 +132,11 @@ function InvitePreview({ pin }: { pin: Extract<MapPin, { kind: 'invite' }> }) {
   const inv = pin.invite;
   return (
     <View style={{ gap: space.sm }}>
-      <Pressable onPress={() => router.push({ pathname: '/invite/[id]', params: { id: inv.id } })}>
+      <Pressable
+        onPress={() => router.push({ pathname: '/invite/[id]', params: { id: inv.id } })}
+        accessibilityRole="button"
+        accessibilityLabel="View invite details"
+      >
         <Row gap={space.md} style={[{ alignItems: 'flex-start' }, styles.headRow]}>
           <InviteCover invite={inv} size={48} />
           <View style={{ flex: 1, gap: 4 }}>
@@ -210,7 +225,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(31,31,37,0.94)',
+    backgroundColor: colors.glassSearch,
     borderRadius: radius.pill,
     paddingHorizontal: 14,
     paddingVertical: 11,
@@ -223,7 +238,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 12,
     right: 12,
-    backgroundColor: 'rgba(31,31,37,0.97)',
+    backgroundColor: colors.glassPreview,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,

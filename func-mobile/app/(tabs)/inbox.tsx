@@ -59,7 +59,12 @@ export default function InboxScreen() {
 function JoinBatchRow({ batch }: { batch: JoinBatch }) {
   const router = useRouter();
   return (
-    <Pressable style={styles.batch} onPress={() => router.push({ pathname: '/review/[id]', params: { id: batch.invite.id } })}>
+    <Pressable
+      style={styles.batch}
+      onPress={() => router.push({ pathname: '/review/[id]', params: { id: batch.invite.id } })}
+      accessibilityRole="button"
+      accessibilityLabel={`${batch.invite.description} · ${batch.pendingCount} waiting`}
+    >
       <InviteCover invite={batch.invite} size={48} />
       <View style={{ flex: 1, gap: 4 }}>
         <Body numberOfLines={1} style={{ fontWeight: '600' }}>{batch.invite.description}</Body>

@@ -5,6 +5,11 @@ export const colors = {
   surface: '#1f1f25',
   surfaceRaised: '#26262e',
   border: '#2e2e37',
+  // Denser glass variants for the map screen's floating search bar and pin
+  // preview card, which sit directly over live map content and need more
+  // opacity than a standard translucent surface.
+  glassSearch: 'rgba(31, 31, 37, 0.94)',
+  glassPreview: 'rgba(31, 31, 37, 0.97)',
   text: '#f2f2f5',
   muted: '#8d8d99',
   faint: '#55555f',
@@ -21,6 +26,10 @@ export const colors = {
 
   // Live status
   dtf: '#22c55e',
+  // Alpha variants of dtf, named so the mutual-glow map overlay doesn't
+  // re-derive its own copy of the DTF color at a different opacity.
+  dtfGlowOuter: 'rgba(34, 197, 94, 0.14)',
+  dtfGlowInner: 'rgba(34, 197, 94, 0.2)',
   casual: '#f59e0b',
   off: '#6b6b76',
 } as const;

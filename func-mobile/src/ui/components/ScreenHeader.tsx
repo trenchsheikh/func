@@ -12,7 +12,13 @@ export function ScreenHeader({ title, back, right }: { title: string; back?: boo
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
       {back ? (
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.back} accessibilityLabel="Back">
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={styles.back}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <BackIcon color={colors.text} />
         </Pressable>
       ) : null}
